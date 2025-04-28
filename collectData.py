@@ -5,60 +5,82 @@ import json
 from seeed_dht import DHT
 import os
 from dotenv import load_dotenv
+from grove.adc import ADC
 
-# Load environment variables
-load_dotenv()
+class SensorManager:
+    def __init__(self):
+        self.dht_sensor = DHT("11", 5)  # DHT11 on pin 5
+        self.adc = ADC(0x08)  # ADC for analog sensors
+        self.light_sensor_channel = 0  # Light sensor on A0
 
-# Get environment variables
-id = os.getenv('UUID')
-connection_string = os.getenv('IOT_CONNECTION_STRING')
+    def read_temperature(self):
+        return self.dht_sensor.read()[1]
 
-device_client = IoTHubDeviceClient.create_from_connection_string(connection_string)
+    def read_humidity(self):
+        return self.dht_sensor.read()[0]
 
-print('Connecting')
-device_client.connect()
-print('Connected')
+    def read_light(self):
+        return self.adc.read(self.light_sensor_channel)
 
-client_name = id + '_temp_humi_sensor'
-client_telemetry_topic = id + '/telemetry'
-server_command_topic = id + '/commands'
-button_led = GPIO(16, GPIO.OUT)
+    def get_sensor_data(self):
+        return {
+            'temperature': self.read_temperature(),
+            'humidity': self.read_humidity(),
+            'light': self.read_light()
+        }
 
-# Initialize the DHT11 sensor on pin 5
-sensor = DHT("11", 5)
+class AzureIoTClient:
+    def __init__(self):
+        load_dotenv()
+        self.device_id = os.getenv('UUID')
+        self.connection_string = os.getenv('IOT_CONNECTION_STRING')
+        self.client = IoTHubDeviceClient.create_from_connection_string(self.connection_string)
+        self.button_led = GPIO(16, GPIO.OUT)
 
-def handle_command(client, userdata, message):
-    payload = json.loads(message.payload.decode())
-    print("Message received:", payload)
+    def connect(self):
+        print('Connecting to Azure IoT Hub...')
+        self.client.connect()
+        print('Connected successfully')
 
-    if payload['heating_on']:
-        button_led.write(1)
-    else:
-        button_led.write(0)
+    def send_telemetry(self, data):
+        telemetry = json.dumps(data)
+        message = Message(telemetry)
+        message.content_type = "application/json"
+        message.content_encoding = "utf-8"
+        self.client.send_message(message)
+        print("Sent telemetry:", telemetry)
 
+    def handle_command(self, client, userdata, message):
+        payload = json.loads(message.payload.decode())
+        print("Command received:", payload)
+        if payload.get('heating_on'):
+            self.button_led.write(1)
+        else:
+            self.button_led.write(0)
 
-while True:
-    # Read temperature from the sensor
-    temp = sensor.read()[1]
+def main():
+    # Initialize components
+    sensors = SensorManager()
+    azure_client = AzureIoTClient()
     
-    # Read humidity from the sensor
-    humi = sensor.read()[0]
-    
-    # Create payload
-    payload = {'temperature': temp, 'humidity': humi}
-    telemetry = json.dumps(payload)
-    
-    # Create IoT Hub message
-    message = Message(telemetry)
-    
-    # Add message properties if needed
-    message.content_type = "application/json"
-    message.content_encoding = "utf-8"
-    
-    # Send the message to IoT Hub
-    device_client.send_message(message)
-    
-    print("Sending telemetry: ", telemetry)
+    # Connect to Azure
+    azure_client.connect()
 
-    # Wait before the next reading
-    time.sleep(60)
+    # Main loop
+    while True:
+        try:
+            # Get sensor readings
+            sensor_data = sensors.get_sensor_data()
+            
+            # Send to Azure
+            azure_client.send_telemetry(sensor_data)
+            
+            # Wait before next reading
+            time.sleep(60)
+            
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            time.sleep(5)  # Wait before retrying
+
+if __name__ == "__main__":
+    main()
