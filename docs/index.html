@@ -27,11 +27,10 @@
         margin-bottom: 1.5rem;
       }
       .ui.grid > .column {
-        padding: 1rem; /* Increased padding for better spacing */
+        padding: 0.5rem;
       }
       canvas {
-        max-height: 500px; /* Increased height for larger charts */
-        width: 100%; /* Ensure canvas takes full width of its container */
+        max-height: 350px;
       }
     </style>
   </head>
@@ -42,16 +41,16 @@
         My Room Conditions <i class="home icon"></i>
       </h1>
       <div class="ui stackable grid">
-        <div class="sixteen wide column"> <!-- Changed to full width -->
+        <div class="eight wide column">
           <canvas id="temperatureChart"></canvas>
         </div>
-        <div class="sixteen wide column">
+        <div class="eight wide column">
           <canvas id="humidityChart"></canvas>
         </div>
-        <div class="sixteen wide column">
+        <div class="eight wide column">
           <canvas id="co2Chart"></canvas>
         </div>
-        <div class="sixteen wide column">
+        <div class="eight wide column">
           <canvas id="lightChart"></canvas>
         </div>
       </div>
