@@ -9,21 +9,129 @@
   <!-- Luxon + adapter for time axis -->
   <script src="https://cdn.jsdelivr.net/npm/luxon@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    body { background: #1e1e1e; color: #eee; font-family: sans-serif; padding: 1rem; }
-    h1 { text-align: center; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-    canvas { background: #2a2a2a; border-radius: 8px; }
+    body { 
+      background: #222; 
+      color: #eee; 
+      font-family: Arial, sans-serif; 
+      padding: 0; 
+      margin: 0;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    h1 { 
+      text-align: center; 
+      margin: 1.5rem 0; 
+      font-size: 1.8rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .grid { 
+      display: grid; 
+      grid-template-columns: 1fr 1fr; 
+      gap: 1.2rem; 
+      padding: 0 1rem 1.5rem;
+    }
+    
+    .chart-container {
+      background: #2a2a2a;
+      border-radius: 5px;
+      padding: 1.2rem 0.5rem 0.8rem;
+      position: relative;
+    }
+    
+    .current-value {
+      margin-bottom: 1rem;
+      padding: 0 1rem;
+      display: flex;
+      align-items: center;
+    }
+    
+    .current-value i {
+      margin-right: 0.5rem;
+      color: #eee;
+      font-size: 1.2rem;
+      width: 20px;
+      text-align: center;
+    }
+    
+    .value-label {
+      font-size: 1rem;
+      text-transform: uppercase;
+      font-weight: 500;
+      margin-right: 0.5rem;
+    }
+    
+    .value-number {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #fff;
+    }
+    
+    .value-unit {
+      font-size: 0.9rem;
+      color: #bbb;
+      margin-left: 0.2rem;
+    }
+    
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
   </style>
 </head>
 <body>
-  <h1>Home Office Quality</h1>
+  <h1>
+    MY ROOM AIR QUALITY 
+    <i class="fa-solid fa-house"></i>
+  </h1>
+  
   <div class="grid">
-    <canvas id="chart-temp"></canvas>
-    <canvas id="chart-hum"></canvas>
-    <canvas id="chart-pres"></canvas>
-    <canvas id="chart-light"></canvas>
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="fas fa-temperature-half"></i>
+        <span class="value-label">TEMPERATURE:</span>
+        <span class="value-number" id="current-temp">--.-</span>
+        <span class="value-unit">°C</span>
+      </div>
+      <canvas id="chart-temp"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="fas fa-droplet"></i>
+        <span class="value-label">HUMIDITY:</span>
+        <span class="value-number" id="current-hum">--.-</span>
+        <span class="value-unit">%RH</span>
+      </div>
+      <canvas id="chart-hum"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="fas fa-sun"></i>
+        <span class="value-label">PRESSURE:</span>
+        <span class="value-number" id="current-pres">----</span>
+        <span class="value-unit">hPa</span>
+      </div>
+      <canvas id="chart-pres"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="far fa-lightbulb"></i>
+        <span class="value-label">LIGHT:</span>
+        <span class="value-number" id="current-light">--</span>
+        <span class="value-unit">LUX</span>
+      </div>
+      <canvas id="chart-light"></canvas>
+    </div>
   </div>
 
   <script>
@@ -31,6 +139,15 @@
   const container = 'telementry';
   const sasToken  = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D';  // no leading "?"
   const baseUrl   = `https://${account}.blob.core.windows.net/${container}`;
+
+  // Chart configuration
+  const chartConfig = {
+    lineColor: '#22ddcc',
+    bgColor: '#2a2a2a',
+    gridColor: '#3a3a3a',
+    fontColor: '#ddd',
+    titleColor: '#fff'
+  };
 
   // 1) List all JSON blobs in the container
   async function listBlobs() {
@@ -64,49 +181,132 @@
       times: raw.map(d=>new Date(d.timestamp)),
       temp:  raw.map(d=>d.temperature),
       hum:   raw.map(d=>d.humidity),
-      pres:  raw.map(d=>d.pressure),
-      light: raw.map(d=>d.light)
+      pres:  raw.map(d=>d.pressure || 1009), // Default value if missing
+      light: raw.map(d=>d.light),
+      co2:   raw.map(d=>d.co2 || 0) // Handle CO2 if available
     };
   }
 
   // 4) Draw charts
-  function draw(id, label, data, unit) {
-    new Chart(document.getElementById(id), {
+  function draw(id, data, unit) {
+    return new Chart(document.getElementById(id), {
       type: 'line',
       data: {
         labels: data.times,
         datasets: [{
-          label,
           data,
-          borderColor: '#22ddaa',
-          borderWidth: 2,
+          borderColor: chartConfig.lineColor,
+          borderWidth: 1.5,
           pointRadius: 0,
+          tension: 0.2,
           fill: false
         }]
       },
       options: {
         responsive: true,
-        scales: {
-          x: { type: 'time', time: { tooltipFormat: 'HH:mm' }, grid: { color: '#444' } },
-          y: { title: { display: true, text: unit } }
-        },
+        maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: '#ccc' } },
-          title: { display: true, text: `${label}: ${data[data.length-1]} ${unit}`, color: '#fff' }
+          legend: {
+            display: false
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: '#111',
+            titleColor: '#fff',
+            bodyColor: '#ddd',
+            borderColor: '#333',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: { 
+            type: 'time', 
+            time: { 
+              unit: 'hour',
+              displayFormats: {
+                hour: 'HH:mm'
+              },
+              tooltipFormat: 'HH:mm'
+            }, 
+            grid: { 
+              color: chartConfig.gridColor,
+              drawBorder: false
+            },
+            ticks: {
+              color: chartConfig.fontColor,
+              maxRotation: 0,
+              font: {
+                size: 10
+              }
+            }
+          },
+          y: { 
+            grid: { 
+              color: chartConfig.gridColor,
+              drawBorder: false
+            },
+            ticks: {
+              color: chartConfig.fontColor,
+              font: {
+                size: 10
+              }
+            },
+            title: { 
+              display: false
+            }
+          }
+        },
+        layout: {
+          padding: {
+            top: 5,
+            right: 10,
+            bottom: 0,
+            left: 10
+          }
+        },
+        elements: {
+          line: {
+            borderWidth: 1.5
+          }
         }
       }
     });
   }
 
-  // 5) Main
+  // 5) Update current value displays
+  function updateCurrentValues(data) {
+    document.getElementById('current-temp').textContent = data.temp[data.temp.length-1].toFixed(1);
+    document.getElementById('current-hum').textContent = data.hum[data.hum.length-1].toFixed(1);
+    document.getElementById('current-pres').textContent = Math.round(data.pres[data.pres.length-1]);
+    document.getElementById('current-light').textContent = Math.round(data.light[data.light.length-1]);
+  }
+
+  // 6) Main
   loadData().then(raw => {
-    const {times,temp,hum,pres,light} = prep(raw);
-    draw('chart-temp', 'Temperature', temp, '°C');
-    draw('chart-hum' , 'Humidity'   , hum , '%RH');
-    draw('chart-pres','Pressure'   , pres, 'hPa');
-    draw('chart-light','Light'     , light, 'Lux');
+    const data = prep(raw);
+    
+    // Update current values at the top of charts
+    updateCurrentValues(data);
+    
+    // Draw all charts
+    draw('chart-temp', data.temp, '°C');
+    draw('chart-hum', data.hum, '%RH');
+    draw('chart-pres', data.pres, 'hPa');
+    draw('chart-light', data.light, 'Lux');
+    
+    // Optional: set up auto-refresh every 5 minutes
+    setInterval(() => {
+      loadData().then(raw => {
+        const data = prep(raw);
+        updateCurrentValues(data);
+      });
+    }, 5 * 60 * 1000);
   })
-  .catch(e=> console.error('Error loading/plotting data', e));
+  .catch(e=> {
+    console.error('Error loading/plotting data', e);
+    document.body.innerHTML += `<div style="color:red;padding:20px;text-align:center">Error loading data: ${e.message}</div>`;
+  });
   </script>
 </body>
 </html>
