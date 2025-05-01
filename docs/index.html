@@ -1,558 +1,61 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>My Room Air Quality</title>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>My Room Conditions</title>
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Luxon + adapter for time axis -->
-  <script src="https://cdn.jsdelivr.net/npm/luxon@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Highcharts core + dark theme -->
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="https://code.highcharts.com/themes/dark-unica.js"></script>
 
-  <style>
-    body { 
-      background: #222; 
-      color: #eee; 
-      font-family: Arial, sans-serif; 
-      padding: 0; 
-      margin: 0;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    
-    h1 { 
-      text-align: center; 
-      margin: 1.5rem 0; 
-      font-size: 1.8rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    
-    .grid { 
-      display: grid; 
-      grid-template-columns: 1fr 1fr; 
-      gap: 1.2rem; 
-      padding: 0 1rem 1.5rem;
-    }
-    
-    .chart-container {
-      background: #2a2a2a;
-      border-radius: 5px;
-      padding: 1.2rem 0.5rem 0.8rem;
-      position: relative;
-      height: 300px;
-    }
-    
-    .current-value {
-      margin-bottom: 1rem;
-      padding: 0 1rem;
-      display: flex;
-      align-items: center;
-    }
-    
-    .current-value i {
-      margin-right: 0.5rem;
-      color: #eee;
-      font-size: 1.2rem;
-      width: 20px;
-      text-align: center;
-    }
-    
-    .value-label {
-      font-size: 1rem;
-      text-transform: uppercase;
-      font-weight: 500;
-      margin-right: 0.5rem;
-    }
-    
-    .value-number {
-      font-size: 1.1rem;
-      font-weight: bold;
-      color: #fff;
-    }
-    
-    .value-unit {
-      font-size: 0.9rem;
-      color: #bbb;
-      margin-left: 0.2rem;
-    }
-    
-    .error-message {
-      color: #ff5555;
-      background: rgba(50, 0, 0, 0.3);
-      padding: 1rem;
-      margin: 1rem;
-      border-radius: 5px;
-      text-align: center;
-    }
-    
-    .debug-info {
-      color: #aaa;
-      background: rgba(0, 0, 0, 0.3);
-      padding: 0.5rem;
-      margin: 0.5rem;
-      border-radius: 5px;
-      font-size: 0.8rem;
-      font-family: monospace;
-      max-height: 100px;
-      overflow: auto;
-      display: none; /* Hide by default */
-    }
-    
-    #debug-toggle {
-      position: fixed;
-      right: 10px;
-      bottom: 10px;
-      background: rgba(0,0,0,0.5);
-      color: #aaa;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 3px;
-      cursor: pointer;
-    }
-  </style>
-</head>
-<body>
-  <h1>
-    MY ROOM AIR QUALITY 
-    <i class="fa-solid fa-house"></i>
-  </h1>
-  
-  <div class="grid">
-    <div class="chart-container">
-      <div class="current-value">
-        <i class="fas fa-temperature-half"></i>
-        <span class="value-label">TEMPERATURE:</span>
-        <span class="value-number" id="current-temp">--.-</span>
-        <span class="value-unit">°C</span>
+    <!-- moment for timezone handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
+
+    <!-- Semantic UI just for layout/icons (optional) -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css" />
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/components/icon.min.css" />
+
+    <style>
+      body {
+        background: #2a2a2b;
+        color: #eee;
+        padding: 1rem;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 1.5rem;
+      }
+      .ui.grid > .column {
+        padding: 0.5rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="ui container">
+      <h1 class="ui header">
+        My Room Conditions <i class="home icon"></i>
+      </h1>
+      <div class="ui stackable grid">
+        <div id="temperature" class="eight wide column" style="height: 350px;"></div>
+        <div id="humidity"    class="eight wide column" style="height: 350px;"></div>
+        <div id="pressure"    class="eight wide column" style="height: 350px;"></div>
+        <div id="light"       class="eight wide column" style="height: 350px;"></div>
       </div>
-      <canvas id="chart-temp"></canvas>
     </div>
-    
-    <div class="chart-container">
-      <div class="current-value">
-        <i class="fas fa-droplet"></i>
-        <span class="value-label">HUMIDITY:</span>
-        <span class="value-number" id="current-hum">--.-</span>
-        <span class="value-unit">%RH</span>
-      </div>
-      <canvas id="chart-hum"></canvas>
-    </div>
-    
-    <div class="chart-container">
-      <div class="current-value">
-        <i class="fas fa-sun"></i>
-        <span class="value-label">PRESSURE:</span>
-        <span class="value-number" id="current-pres">----</span>
-        <span class="value-unit">hPa</span>
-      </div>
-      <canvas id="chart-pres"></canvas>
-    </div>
-    
-    <div class="chart-container">
-      <div class="current-value">
-        <i class="far fa-lightbulb"></i>
-        <span class="value-label">LIGHT:</span>
-        <span class="value-number" id="current-light">--</span>
-        <span class="value-unit">LUX</span>
-      </div>
-      <canvas id="chart-light"></canvas>
-    </div>
-  </div>
-  
-  <div id="error-container"></div>
-  <div id="debug-container" class="debug-info"></div>
-  <button id="debug-toggle">Debug</button>
 
-  <script>
-  // Configuration
-  const account   = 'homeoffice1';
-  const container = 'telementry';
-  const sasToken  = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D';
-  const baseUrl   = `https://${account}.blob.core.windows.net/${container}`;
-
-  // Chart configuration
-  const chartConfig = {
-    lineColor: '#22ddcc',
-    bgColor: '#2a2a2a',
-    gridColor: '#3a3a3a',
-    fontColor: '#ddd',
-    titleColor: '#fff'
-  };
-
-  // Debug helpers
-  const debugLog = (message) => {
-    console.log(message);
-    const container = document.getElementById('debug-container');
-    if (container) {
-      container.innerHTML += `<div>${message}</div>`;
-    }
-  };
-
-  const showError = (message) => {
-    console.error(message);
-    const container = document.getElementById('error-container');
-    if (container) {
-      container.innerHTML += `<div class="error-message">${message}</div>`;
-    }
-  };
-
-  // Toggle debug info
-  document.getElementById('debug-toggle').addEventListener('click', () => {
-    const container = document.getElementById('debug-container');
-    container.style.display = container.style.display === 'none' ? 'block' : 'none';
-  });
-
-  // 1) List all JSON blobs in the container
-  async function listBlobs() {
-    try {
-      debugLog(`Listing blobs from ${baseUrl}`);
-      const url = `${baseUrl}?restype=container&comp=list&${sasToken}`;
-      const res = await fetch(url);
-      
-      if (!res.ok) {
-        throw new Error(`Failed to list blobs: ${res.status} ${res.statusText}`);
-      }
-      
-      const xml = await res.text();
-      debugLog(`XML response received, length: ${xml.length}`);
-      
-      const dom = new DOMParser().parseFromString(xml, 'application/xml');
-      const blobs = Array.from(dom.getElementsByTagName('Blob'))
-        .map(b => b.getElementsByTagName('Name')[0].textContent)
-        .filter(n => n.endsWith('.json'));
-      
-      debugLog(`Found ${blobs.length} JSON blobs`);
-      if (blobs.length > 0) {
-        debugLog(`First blob: ${blobs[0]}`);
-      } else {
-        debugLog("No JSON blobs found in container");
-      }
-      
-      return blobs;
-    } catch (error) {
-      showError(`Error listing blobs: ${error.message}`);
-      throw error;
-    }
-  }
-
-  // 2) Download & concatenate all JSON arrays
-  async function loadData() {
-    try {
-      const names = await listBlobs();
-      
-      if (!names || names.length === 0) {
-        showError("No JSON blobs found. Check your container name and SAS token.");
-        return [];
-      }
-      
-      let all = [];
-      
-      for (let name of names) {
-        debugLog(`Loading blob: ${name}`);
-        
-        try {
-          const r = await fetch(`${baseUrl}/${name}?${sasToken}`);
-          
-          if (!r.ok) {
-            debugLog(`Failed to fetch ${name}: ${r.status} ${r.statusText}`);
-            continue;
-          }
-          
-          const text = await r.text();
-          debugLog(`Received data for ${name}, length: ${text.length}`);
-          
-          try {
-            let j = JSON.parse(text);
-            
-            // Handle both array and single object formats
-            if (Array.isArray(j)) {
-              debugLog(`${name} contains an array of ${j.length} items`);
-              all = all.concat(j);
-            } else {
-              debugLog(`${name} contains a single object`);
-              all.push(j);
-            }
-          } catch (parseError) {
-            debugLog(`Error parsing JSON from ${name}: ${parseError.message}`);
-            debugLog(`First 100 chars: ${text.substring(0, 100)}`);
-          }
-        } catch (fetchError) {
-          debugLog(`Error fetching blob ${name}: ${fetchError.message}`);
-        }
-      }
-      
-      debugLog(`Total data points loaded: ${all.length}`);
-      
-      if (all.length === 0) {
-        showError("No data points could be loaded from any blob.");
-      } else {
-        debugLog(`Sample data point: ${JSON.stringify(all[0]).substring(0, 200)}...`);
-      }
-      
-      return all;
-    } catch (error) {
-      showError(`Error loading data: ${error.message}`);
-      return [];
-    }
-  }
-
-  // 3) Extract sensor data from raw messages
-  function extractSensorData(rawMessages) {
-    if (!rawMessages || !rawMessages.length) {
-      return { times: [], temp: [], hum: [], pres: [], light: [], co2: [] };
-    }
-    
-    debugLog("Extracting sensor data from messages...");
-    
-    // Check if we're dealing with IoT Hub events or direct sensor readings
-    const isIoTHubFormat = rawMessages[0].hasOwnProperty('Body') || 
-                            rawMessages[0].hasOwnProperty('EnqueuedTimeUtc');
-    
-    let sensorReadings = [];
-    
-    if (isIoTHubFormat) {
-      debugLog("Processing IoT Hub format messages");
-      
-      // Extract from IoT Hub format (messages with Body field)
-      sensorReadings = rawMessages.map(msg => {
-        try {
-          // Try to parse Body if it's a string
-          if (msg.Body && typeof msg.Body === 'string') {
-            const body = JSON.parse(msg.Body);
-            // Use EnqueuedTimeUtc if the body doesn't have a timestamp
-            if (!body.timestamp && msg.EnqueuedTimeUtc) {
-              body.timestamp = msg.EnqueuedTimeUtc;
-            }
-            return body;
-          } 
-          // If Body is already an object, use it directly
-          else if (msg.Body && typeof msg.Body === 'object') {
-            return msg.Body;
-          } 
-          // Fallback to the message itself if it has sensor fields
-          else if (msg.temperature || msg.humidity || msg.light || msg.co2) {
-            return msg;
-          }
-          // Last resort: empty object with timestamp
-          return { timestamp: msg.EnqueuedTimeUtc };
-        } catch (e) {
-          debugLog(`Error extracting body data: ${e.message}`);
-          return null;
-        }
-      }).filter(Boolean); // Remove null entries
-    } else {
-      // Direct sensor readings format - use as is
-      debugLog("Processing direct sensor reading format");
-      sensorReadings = rawMessages;
-    }
-    
-    if (sensorReadings.length === 0) {
-      showError("Could not extract any sensor readings from the data");
-      return { times: [], temp: [], hum: [], pres: [], light: [], co2: [] };
-    }
-    
-    // Sample the first reading to see what fields we have
-    const sampleReading = sensorReadings[0];
-    debugLog(`Sample reading keys: ${Object.keys(sampleReading).join(', ')}`);
-    
-    // Sort readings by timestamp
-    sensorReadings.sort((a, b) => {
-      return new Date(a.timestamp) - new Date(b.timestamp);
-    });
-    
-    // Extract data series
-    const result = {
-      times: sensorReadings.map(d => new Date(d.timestamp)),
-      temp: sensorReadings.map(d => getNumericValue(d, ['temperature', 'temp'])),
-      hum: sensorReadings.map(d => getNumericValue(d, ['humidity', 'hum'])),
-      pres: sensorReadings.map(d => getNumericValue(d, ['pressure', 'pres'], 1009)),
-      light: sensorReadings.map(d => getNumericValue(d, ['light', 'lightLevel'])),
-      co2: sensorReadings.map(d => getNumericValue(d, ['co2']))
-    };
-    
-    // Log results
-    Object.keys(result).forEach(key => {
-      if (key !== 'times') {
-        const validCount = result[key].filter(v => v !== null).length;
-        debugLog(`${key}: found ${validCount} valid readings`);
-      }
-    });
-    
-    return result;
-  }
-  
-  // Helper to get numeric values with multiple possible field names
-  function getNumericValue(obj, fieldNames, defaultValue = null) {
-    for (const fieldName of fieldNames) {
-      if (obj[fieldName] !== undefined) {
-        const val = parseFloat(obj[fieldName]);
-        if (!isNaN(val)) return val;
-      }
-    }
-    return defaultValue;
-  }
-
-  // 4) Draw charts
-  function drawChart(canvasId, label, data, times, unit) {
-    if (!data || !data.length || !times || !times.length) {
-      debugLog(`No data to draw chart for ${label}`);
-      return null;
-    }
-    
-    // Filter out null/undefined values while keeping the time alignment
-    const validData = data.map((value, index) => {
-      return { x: times[index], y: value };
-    }).filter(point => point.y !== null && point.y !== undefined);
-    
-    if (validData.length === 0) {
-      debugLog(`No valid data points for ${label} after filtering`);
-      return null;
-    }
-    
-    debugLog(`Drawing ${label} chart with ${validData.length} data points`);
-    
-    // Get the canvas context
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) {
-      debugLog(`Canvas element ${canvasId} not found`);
-      return null;
-    }
-    
-    // Create and return the chart
-    return new Chart(canvas, {
-      type: 'line',
-      data: {
-        datasets: [{
-          label,
-          data: validData,
-          borderColor: chartConfig.lineColor,
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.2,
-          fill: false
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            backgroundColor: '#111',
-            titleColor: '#fff',
-            bodyColor: '#ddd',
-            borderColor: '#333',
-            borderWidth: 1
-          }
-        },
-        scales: {
-          x: { 
-            type: 'time', 
-            time: { 
-              unit: 'minute',
-              displayFormats: {
-                minute: 'HH:mm'
-              },
-              tooltipFormat: 'HH:mm'
-            }, 
-            grid: { 
-              color: chartConfig.gridColor,
-              drawBorder: false
-            },
-            ticks: {
-              color: chartConfig.fontColor,
-              maxRotation: 0,
-              font: {
-                size: 10
-              }
-            }
-          },
-          y: { 
-            grid: { 
-              color: chartConfig.gridColor,
-              drawBorder: false
-            },
-            ticks: {
-              color: chartConfig.fontColor,
-              font: {
-                size: 10
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  // 5) Update current values in the UI
-  function updateCurrentValues(data) {
-    function updateValue(elementId, values, formatFunc = v => v.toFixed(1)) {
-      const element = document.getElementById(elementId);
-      if (!element) return;
-      
-      // Get the last non-null value
-      const lastValues = values.filter(v => v !== null);
-      if (lastValues.length === 0) return;
-      
-      const lastValue = lastValues[lastValues.length - 1];
-      element.textContent = formatFunc(lastValue);
-    }
-    
-    try {
-      updateValue('current-temp', data.temp);
-      updateValue('current-hum', data.hum);
-      updateValue('current-pres', data.pres, v => Math.round(v));
-      updateValue('current-light', data.light, v => Math.round(v));
-    } catch (error) {
-      debugLog(`Error updating current values: ${error.message}`);
-    }
-  }
-
-  // 6) Main function to load data and render
-  async function initDashboard() {
-    try {
-      // Load data from Azure Blob Storage
-      const rawData = await loadData();
-      
-      if (!rawData || rawData.length === 0) {
-        showError("No data loaded. Check console for details.");
-        return;
-      }
-      
-      // Extract sensor readings from raw data
-      const sensorData = extractSensorData(rawData);
-      
-      // Update current values
-      updateCurrentValues(sensorData);
-      
-      // Draw charts
-      drawChart('chart-temp', 'Temperature', sensorData.temp, sensorData.times, '°C');
-      drawChart('chart-hum', 'Humidity', sensorData.hum, sensorData.times, '%RH');
-      drawChart('chart-pres', 'Pressure', sensorData.pres, sensorData.times, 'hPa');
-      drawChart('chart-light', 'Light', sensorData.light, sensorData.times, 'Lux');
-      
-      // Set up auto-refresh
-      setTimeout(() => {
-        window.location.reload();
-      }, 5 * 60 * 1000); // Refresh every 5 minutes
-      
-    } catch (error) {
-      showError(`Dashboard initialization failed: ${error.message}`);
-      console.error('Dashboard error:', error);
-    }
-  }
-
-  // Start the dashboard
-  window.addEventListener('DOMContentLoaded', initDashboard);
-  </script>
-</body>
+    <!-- Your app logic -->
+    <script src="app.js"></script>
+    <script>
+      // Kick things off
+      retrieveData()
+        .then(data => renderCharts(data))
+        .catch(err => console.error(err));
+    </script>
+  </body>
 </html>
