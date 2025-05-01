@@ -4,7 +4,7 @@
 
 const ACCOUNT   = 'homeoffice1';
 const CONTAINER = 'telementry';   // <— make sure this exactly matches your container name
-const SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D'; // <— your container‐level SAS token (no leading “?”)
+const SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D'; // <— your container‐level SAS token (no leading "?")
 const BASE_URL  = `https://${ACCOUNT}.blob.core.windows.net/${CONTAINER}`;
 
 // How many past points to show (optional)
@@ -29,19 +29,42 @@ async function listBlobs() {
 // ————————————————————————————
 async function loadData() {
   const names = await listBlobs();
-  // limit to last N blobs if you like:
-  // names.sort(); names.splice(0, names.length - MAX_POINTS);
+  console.log('Found blobs:', names);
   
   let all = [];
   for (let name of names) {
     try {
       const r = await fetch(`${BASE_URL}/${name}?${SAS_TOKEN}`);
-      if (!r.ok) continue;
-      const json = await r.json();
-      // IoT Hub writes an array per file; could also be a single object
-      all = all.concat(Array.isArray(json) ? json : [json]);
-    } catch (_) { /* skip errors */ }
+      if (!r.ok) {
+        console.error(`Failed to fetch ${name}: ${r.status}`);
+        continue;
+      }
+      const text = await r.text();
+      console.log(`Raw data from ${name}:`, text.substring(0, 200) + '...');
+      
+      try {
+        const json = JSON.parse(text);
+        // IoT Hub writes an array per file; could also be a single object
+        if (Array.isArray(json)) {
+          console.log(`${name} contains array of ${json.length} items`);
+          all = all.concat(json);
+        } else {
+          console.log(`${name} contains single object:`, json);
+          all.push(json);
+        }
+      } catch (parseError) {
+        console.error(`Failed to parse JSON from ${name}:`, parseError);
+      }
+    } catch (fetchError) {
+      console.error(`Failed to fetch ${name}:`, fetchError);
+    }
   }
+  
+  console.log('Total items loaded:', all.length);
+  if (all.length > 0) {
+    console.log('Sample item:', all[0]);
+  }
+  
   return all;
 }
 
@@ -49,26 +72,64 @@ async function loadData() {
 //  3) Prepare series for Highcharts
 // ————————————————————————————
 function prepareSeries(items) {
-  // sort by timestamp
-  items.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  console.log('Preparing series with items:', items);
+  
+  // Extract data from Body if present (IoT Hub format)
+  const cleanItems = items.map(item => {
+    if (item.Body) {
+      // If Body is a string, parse it
+      if (typeof item.Body === 'string') {
+        try {
+          return JSON.parse(item.Body);
+        } catch (e) {
+          console.warn('Failed to parse Body:', e);
+          return null;
+        }
+      }
+      // If Body is already an object, use it directly
+      return item.Body;
+    }
+    // If no Body property, assume direct sensor data
+    return item;
+  }).filter(item => item !== null);
+
+  console.log('Cleaned items:', cleanItems);
+  
+  // sort by timestamp (use EnqueuedTimeUtc if no timestamp)
+  cleanItems.sort((a, b) => {
+    const timeA = new Date(a.timestamp || a.EnqueuedTimeUtc);
+    const timeB = new Date(b.timestamp || b.EnqueuedTimeUtc);
+    return timeA - timeB;
+  });
 
   // helper to pluck and timestamp-convert
   function pluck(field) {
-    return items
+    const points = cleanItems
       .map(d => {
-        const t = new Date(d.timestamp).getTime();
+        if (!d) {
+          console.warn('Invalid data point:', d);
+          return null;
+        }
+        // Use EnqueuedTimeUtc if no timestamp
+        const t = new Date(d.timestamp || d.EnqueuedTimeUtc).getTime();
         const v = parseFloat(d[field]);
         return isNaN(v) ? null : [t, v];
       })
-      .filter(pt => pt[1] !== null);
+      .filter(pt => pt !== null);
+      
+    console.log(`Field ${field} has ${points.length} valid points`);
+    return points;
   }
 
-  return {
+  const series = {
     temperature: pluck('temperature'),
     humidity:    pluck('humidity'),
     pressure:    pluck('pressure'),
     light:       pluck('light')
   };
+  
+  console.log('Prepared series:', series);
+  return series;
 }
 
 // ————————————————————————————
@@ -80,12 +141,21 @@ function renderCharts(rawItems) {
     return;
   }
 
+  console.log('Rendering charts with', rawItems.length, 'items');
   const series = prepareSeries(rawItems);
+  
+  // Safely get latest values with better error handling
+  const getLatest = (arr) => {
+    if (!Array.isArray(arr) || arr.length === 0) return '–';
+    const lastPoint = arr[arr.length - 1];
+    return Array.isArray(lastPoint) ? lastPoint[1] : '–';
+  };
+
   const latest = {
-    temp: series.temperature.slice(-1)[0]?.[1] ?? '–',
-    hum:  series.humidity.slice(-1)[0]?.[1]    ?? '–',
-    pres: series.pressure.slice(-1)[0]?.[1]    ?? '–',
-    light:series.light.slice(-1)[0]?.[1]      ?? '–'
+    temp: getLatest(series.temperature),
+    hum:  getLatest(series.humidity),
+    pres: getLatest(series.pressure),
+    light: getLatest(series.light)
   };
 
   const commonOpts = {
