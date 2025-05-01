@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>My Room Air Quality</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Luxon + adapter for time axis -->
+  <script src="https://cdn.jsdelivr.net/npm/luxon@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+
+  <style>
+    body { background: #1e1e1e; color: #eee; font-family: sans-serif; padding: 1rem; }
+    h1 { text-align: center; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    canvas { background: #2a2a2a; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>My Room Air Quality</h1>
+  <div class="grid">
+    <canvas id="chart-temp"></canvas>
+    <canvas id="chart-hum"></canvas>
+    <canvas id="chart-pres"></canvas>
+    <canvas id="chart-light"></canvas>
+  </div>
+
+  <script>
+  const account   = 'homeoffice1';
+  const container = 'telemetry';
+  const sasToken  = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D';  // no leading "?"
+  const baseUrl   = `https://${account}.blob.core.windows.net/${container}`;
+
+  // 1) List all JSON blobs in the container
+  async function listBlobs() {
+    const url = `${baseUrl}?restype=container&comp=list&${sasToken}`;
+    const res = await fetch(url);
+    const xml = await res.text();
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    return Array.from(dom.getElementsByTagName('Blob'))
+      .map(b => b.getElementsByTagName('Name')[0].textContent)
+      .filter(n => n.endsWith('.json'));
+  }
+
+  // 2) Download & concatenate all JSON arrays
+  async function loadData() {
+    const names = await listBlobs();
+    let all = [];
+    for (let name of names) {
+      const r = await fetch(`${baseUrl}/${name}?${sasToken}`);
+      const j = await r.json();
+      // IoT Hub writes an array of messages per blob
+      all = all.concat(Array.isArray(j) ? j : [j]);
+    }
+    return all;
+  }
+
+  // 3) Turn raw into timeseries
+  function prep(raw) {
+    // sort by timestamp
+    raw.sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+    return {
+      times: raw.map(d=>new Date(d.timestamp)),
+      temp:  raw.map(d=>d.temperature),
+      hum:   raw.map(d=>d.humidity),
+      pres:  raw.map(d=>d.pressure),
+      light: raw.map(d=>d.light)
+    };
+  }
+
+  // 4) Draw charts
+  function draw(id, label, data, unit) {
+    new Chart(document.getElementById(id), {
+      type: 'line',
+      data: {
+        labels: data.times,
+        datasets: [{
+          label,
+          data,
+          borderColor: '#22ddaa',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { type: 'time', time: { tooltipFormat: 'HH:mm' }, grid: { color: '#444' } },
+          y: { title: { display: true, text: unit } }
+        },
+        plugins: {
+          legend: { labels: { color: '#ccc' } },
+          title: { display: true, text: `${label}: ${data[data.length-1]} ${unit}`, color: '#fff' }
+        }
+      }
+    });
+  }
+
+  // 5) Main
+  loadData().then(raw => {
+    const {times,temp,hum,pres,light} = prep(raw);
+    draw('chart-temp', 'Temperature', temp, '°C');
+    draw('chart-hum' , 'Humidity'   , hum , '%RH');
+    draw('chart-pres','Pressure'   , pres, 'hPa');
+    draw('chart-light','Light'     , light, 'Lux');
+  })
+  .catch(e=> console.error('Error loading/plotting data', e));
+  </script>
+</body>
+</html>
