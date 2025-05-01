@@ -146,7 +146,7 @@ function prepareSeries(items) {
   const series = {
     temperature: pluck('temperature'),
     humidity:    pluck('humidity'),
-    pressure:    pluck('pressure'),
+    co2:         pluck('co2'),
     light:       pluck('light')
   };
   
@@ -168,15 +168,19 @@ function renderCharts(rawItems) {
   
   // Safely get latest values with better error handling
   const getLatest = (arr) => {
-    if (!Array.isArray(arr) || arr.length === 0) return '–';
+    if (!Array.isArray(arr) || arr.length === 0) return null; // Return null if no data
     const lastPoint = arr[arr.length - 1];
-    return Array.isArray(lastPoint) ? lastPoint[1] : '–';
+    // Ensure lastPoint is an array [timestamp, value] and value is numeric
+    if (Array.isArray(lastPoint) && typeof lastPoint[1] === 'number' && !isNaN(lastPoint[1])) {
+        return lastPoint[1];
+    }
+    return null; // Return null if data is invalid
   };
 
   const latest = {
     temp: getLatest(series.temperature),
     hum:  getLatest(series.humidity),
-    pres: getLatest(series.pressure),
+    co2:  getLatest(series.co2),
     light: getLatest(series.light)
   };
 
@@ -191,43 +195,60 @@ function renderCharts(rawItems) {
 
   Highcharts.setOptions(Highcharts.theme);
 
-  Highcharts.chart('temperature', {
-    ...commonOpts,
-    title: { useHTML: true,
-      text: `<i class="thermometer half icon"></i>
-             Temperature: ${latest.temp.toFixed(1)}℃`
-    },
-    yAxis: { title: { text: '℃' } },
-    series: [{ data: series.temperature }]
-  });
+  // Only render chart if data exists
+  if (series.temperature.length > 0) {
+    Highcharts.chart('temperature', {
+      ...commonOpts,
+      title: { useHTML: true,
+        text: `<i class="thermometer half icon"></i>
+               Temperature: ${latest.temp !== null ? latest.temp.toFixed(1) + '℃' : 'N/A'}`
+      },
+      yAxis: { title: { text: '℃' } },
+      series: [{ data: series.temperature }]
+    });
+  } else {
+      document.getElementById('temperature').innerHTML = '<p style="text-align: center; padding-top: 50px;">Temperature data not available.</p>';
+  }
 
-  Highcharts.chart('humidity', {
-    ...commonOpts,
-    title: { useHTML: true,
-      text: `<i class="tint icon"></i>
-             Humidity: ${latest.hum.toFixed(1)} %RH`
-    },
-    yAxis: { title: { text: '%RH' } },
-    series: [{ data: series.humidity }]
-  });
+  if (series.humidity.length > 0) {
+    Highcharts.chart('humidity', {
+      ...commonOpts,
+      title: { useHTML: true,
+        text: `<i class="tint icon"></i>
+               Humidity: ${latest.hum !== null ? latest.hum.toFixed(1) + ' %RH' : 'N/A'}`
+      },
+      yAxis: { title: { text: '%RH' } },
+      series: [{ data: series.humidity }]
+    });
+  } else {
+      document.getElementById('humidity').innerHTML = '<p style="text-align: center; padding-top: 50px;">Humidity data not available.</p>';
+  }
 
-  Highcharts.chart('pressure', {
-    ...commonOpts,
-    title: { useHTML: true,
-      text: `<i class="sun icon"></i>
-             Pressure: ${Math.round(latest.pres)} hPa`
-    },
-    yAxis: { title: { text: 'hPa' } },
-    series: [{ data: series.pressure }]
-  });
+  if (series.co2.length > 0) {
+    Highcharts.chart('co2', {
+      ...commonOpts,
+      title: { useHTML: true,
+        text: `<i class="molecule icon"></i>
+               CO2: ${latest.co2 !== null ? Math.round(latest.co2) + ' PPM' : 'N/A'}`
+      },
+      yAxis: { title: { text: 'PPM' } },
+      series: [{ data: series.co2 }]
+    });
+  } else {
+      document.getElementById('co2').innerHTML = '<p style="text-align: center; padding-top: 50px;">CO2 data not available.</p>';
+  }
 
-  Highcharts.chart('light', {
-    ...commonOpts,
-    title: { useHTML: true,
-      text: `<i class="lightbulb icon"></i>
-             Light: ${Math.round(latest.light)} lux`
-    },
-    yAxis: { title: { text: 'Lux' } },
-    series: [{ data: series.light }]
-  });
+  if (series.light.length > 0) {
+    Highcharts.chart('light', {
+      ...commonOpts,
+      title: { useHTML: true,
+        text: `<i class="lightbulb icon"></i>
+               Light: ${latest.light !== null ? Math.round(latest.light) + ' lux' : 'N/A'}`
+      },
+      yAxis: { title: { text: 'Lux' } },
+      series: [{ data: series.light }]
+    });
+  } else {
+      document.getElementById('light').innerHTML = '<p style="text-align: center; padding-top: 50px;">Light data not available.</p>';
+  }
 }

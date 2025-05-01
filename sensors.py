@@ -37,11 +37,17 @@ class SensorManager:
         # Simulate CO2 reading (e.g., parts per million)
         return random.uniform(400, 1000)
 
+    def read_pressure(self):
+        # Simulate pressure reading (e.g., hectopascals/millibars)
+        # Typical atmospheric pressure ranges around 950-1050 hPa
+        return random.uniform(980, 1030)
+
     def get_sensor_data(self):
         temp = self.read_temperature()
         humidity = self.read_humidity()
         light = self.read_light()
         co2 = self.read_co2()
+        pressure = self.read_pressure() # Read fake pressure
 
         data = {}
         if temp is not None:
@@ -50,7 +56,9 @@ class SensorManager:
             data["humidity"] = humidity
         if light is not None:
             data["light"] = light
-        # Always include CO2 for now, as it's fake
+        # Always include fake CO2 and pressure
         data["co2"] = co2
+        data["pressure"] = pressure # Add pressure to the dictionary
 
+        logging.info(f"Collected sensor data: {data}") # Added logging
         return data 
