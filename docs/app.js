@@ -116,7 +116,8 @@ function prepareSeries(items) {
   
   if (cleanItems.length === 0) {
     console.warn("No valid items left after cleaning and timestamp check.");
-    return { temperature: [], humidity: [], pressure: [], light: [] }; // Return empty series
+    // Return empty series with the correct keys
+    return { temperature: [], humidity: [], co2: [], light: [] }; 
   }
 
   // sort by timestamp
