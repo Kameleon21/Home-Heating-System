@@ -114,7 +114,7 @@
     </div>
     
     <div class="chart-container">
-      <div class="current-value">
+    <div class="current-value">
         <i class="fas fa-sun"></i>
         <span class="value-label">PRESSURE:</span>
         <span class="value-number" id="current-pres">----</span>
@@ -151,40 +151,118 @@
 
   // 1) List all JSON blobs in the container
   async function listBlobs() {
-    const url = `${baseUrl}?restype=container&comp=list&${sasToken}`;
-    const res = await fetch(url);
-    const xml = await res.text();
-    const dom = new DOMParser().parseFromString(xml, 'application/xml');
-    return Array.from(dom.getElementsByTagName('Blob'))
-      .map(b => b.getElementsByTagName('Name')[0].textContent)
-      .filter(n => n.endsWith('.json'));
+    try {
+      console.log(`Listing blobs from ${baseUrl}`);
+      const url = `${baseUrl}?restype=container&comp=list&${sasToken}`;
+      const res = await fetch(url);
+      
+      if (!res.ok) {
+        throw new Error(`Failed to list blobs: ${res.status} ${res.statusText}`);
+      }
+      
+      const xml = await res.text();
+      console.log("XML response received, length:", xml.length);
+      
+      const dom = new DOMParser().parseFromString(xml, 'application/xml');
+      const blobs = Array.from(dom.getElementsByTagName('Blob'))
+        .map(b => b.getElementsByTagName('Name')[0].textContent)
+        .filter(n => n.endsWith('.json'));
+      
+      console.log(`Found ${blobs.length} JSON blobs`);
+      if (blobs.length > 0) {
+        console.log("First blob:", blobs[0]);
+      } else {
+        console.warn("No JSON blobs found in container");
+      }
+      
+      return blobs;
+    } catch (error) {
+      console.error("Error listing blobs:", error);
+      throw error;
+    }
   }
 
   // 2) Download & concatenate all JSON arrays
   async function loadData() {
-    const names = await listBlobs();
-    let all = [];
-    for (let name of names) {
-      const r = await fetch(`${baseUrl}/${name}?${sasToken}`);
-      const j = await r.json();
-      // IoT Hub writes an array of messages per blob
-      all = all.concat(Array.isArray(j) ? j : [j]);
+    try {
+      const names = await listBlobs();
+      if (!names || names.length === 0) {
+        console.warn("No blobs found to load");
+        return [];
+      }
+      
+      let all = [];
+      for (let name of names) {
+        console.log(`Loading blob: ${name}`);
+        try {
+          const r = await fetch(`${baseUrl}/${name}?${sasToken}`);
+          
+          if (!r.ok) {
+            console.error(`Failed to fetch ${name}: ${r.status} ${r.statusText}`);
+            continue;
+          }
+          
+          const text = await r.text();
+          console.log(`Received data for ${name}, length: ${text.length}`);
+          
+          try {
+            const j = JSON.parse(text);
+            // IoT Hub writes an array of messages per blob
+            if (Array.isArray(j)) {
+              console.log(`${name} contains an array of ${j.length} items`);
+              all = all.concat(j);
+            } else {
+              console.log(`${name} contains a single object`);
+              all.push(j);
+            }
+          } catch (parseError) {
+            console.error(`Error parsing JSON from ${name}:`, parseError);
+            console.log("First 100 chars:", text.substring(0, 100));
+          }
+        } catch (fetchError) {
+          console.error(`Error fetching blob ${name}:`, fetchError);
+        }
+      }
+      
+      console.log(`Total data points loaded: ${all.length}`);
+      return all;
+    } catch (error) {
+      console.error("Error in loadData:", error);
+      document.body.innerHTML += `<div style="color:orange;padding:20px;text-align:center">Error loading data: ${error.message}. Check browser console for details.</div>`;
+      return [];
     }
-    return all;
   }
 
   // 3) Turn raw into timeseries
   function prep(raw) {
-    // sort by timestamp
-    raw.sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
-    return {
-      times: raw.map(d=>new Date(d.timestamp)),
-      temp:  raw.map(d=>d.temperature),
-      hum:   raw.map(d=>d.humidity),
-      pres:  raw.map(d=>d.pressure || 1009), // Default value if missing
-      light: raw.map(d=>d.light),
-      co2:   raw.map(d=>d.co2 || 0) // Handle CO2 if available
-    };
+    try {
+      // Filter out any items without a timestamp
+      const validData = raw.filter(d => d && d.timestamp);
+      
+      // Sort by timestamp
+      validData.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+      
+      // Extract data with safe access
+      const getData = (item, prop, defaultVal = null) => {
+        const val = item[prop];
+        // Check if the value is a valid number
+        return (val !== undefined && val !== null && !isNaN(val)) ? Number(val) : defaultVal;
+      };
+      
+      // Create data series with safe extraction
+      return {
+        times: validData.map(d => new Date(d.timestamp)),
+        temp: validData.map(d => getData(d, 'temperature')).filter(v => v !== null),
+        hum: validData.map(d => getData(d, 'humidity')).filter(v => v !== null),
+        pres: validData.map(d => getData(d, 'pressure', 1009)).filter(v => v !== null),
+        light: validData.map(d => getData(d, 'light')).filter(v => v !== null),
+        co2: validData.map(d => getData(d, 'co2')).filter(v => v !== null)
+      };
+    } catch (err) {
+      console.error("Error preparing data:", err);
+      // Return empty data structure as fallback
+      return { times: [], temp: [], hum: [], pres: [], light: [], co2: [] };
+    }
   }
 
   // 4) Draw charts
@@ -276,31 +354,70 @@
 
   // 5) Update current value displays
   function updateCurrentValues(data) {
-    document.getElementById('current-temp').textContent = data.temp[data.temp.length-1].toFixed(1);
-    document.getElementById('current-hum').textContent = data.hum[data.hum.length-1].toFixed(1);
-    document.getElementById('current-pres').textContent = Math.round(data.pres[data.pres.length-1]);
-    document.getElementById('current-light').textContent = Math.round(data.light[data.light.length-1]);
+    try {
+      // Check if we have any data
+      if (!data.temp.length || !data.hum.length || !data.light.length) {
+        console.warn("Some data arrays are empty");
+        return; // Don't update if no data
+      }
+      
+      // Get the latest values, safely
+      const lastTemp = data.temp[data.temp.length-1];
+      const lastHum = data.hum[data.hum.length-1];
+      const lastPres = data.pres && data.pres.length ? data.pres[data.pres.length-1] : 1009;
+      const lastLight = data.light[data.light.length-1];
+      
+      // Only update if values are valid numbers
+      if (typeof lastTemp === 'number') {
+        document.getElementById('current-temp').textContent = lastTemp.toFixed(1);
+      }
+      
+      if (typeof lastHum === 'number') {
+        document.getElementById('current-hum').textContent = lastHum.toFixed(1);
+      }
+      
+      if (typeof lastPres === 'number') {
+        document.getElementById('current-pres').textContent = Math.round(lastPres);
+      }
+      
+      if (typeof lastLight === 'number') {
+        document.getElementById('current-light').textContent = Math.round(lastLight);
+      }
+    } catch (err) {
+      console.error("Error updating values:", err);
+    }
   }
 
   // 6) Main
   loadData().then(raw => {
+    // Check if we have any data
+    if (!raw || !raw.length) {
+      throw new Error("No data found in Azure Blob Storage");
+    }
+    
     const data = prep(raw);
+    
+    // Log what we found for debugging
+    console.log(`Loaded ${raw.length} data points`);
+    console.log("Last data point:", raw[raw.length-1]);
     
     // Update current values at the top of charts
     updateCurrentValues(data);
     
-    // Draw all charts
-    draw('chart-temp', data.temp, '°C');
-    draw('chart-hum', data.hum, '%RH');
-    draw('chart-pres', data.pres, 'hPa');
-    draw('chart-light', data.light, 'Lux');
+    // Draw all charts with safe checks for each dataset
+    if (data.temp && data.temp.length) draw('chart-temp', data.temp, '°C');
+    if (data.hum && data.hum.length) draw('chart-hum', data.hum, '%RH');
+    if (data.pres && data.pres.length) draw('chart-pres', data.pres, 'hPa');
+    if (data.light && data.light.length) draw('chart-light', data.light, 'Lux');
     
     // Optional: set up auto-refresh every 5 minutes
     setInterval(() => {
       loadData().then(raw => {
-        const data = prep(raw);
-        updateCurrentValues(data);
-      });
+        if (raw && raw.length) {
+          const data = prep(raw);
+          updateCurrentValues(data);
+        }
+      }).catch(e => console.error("Error during auto-refresh:", e));
     }, 5 * 60 * 1000);
   })
   .catch(e=> {
