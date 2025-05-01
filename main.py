@@ -1,17 +1,22 @@
 import logging
 import time
+import os
 from sensors import SensorManager
 from azure_client import AzureIoTClient
 
 
 def main():
-    # Configure logging
+    # Configure logging with user's home directory
+    home_dir = os.path.expanduser('~')  # Get current user's home directory
+    log_file = os.path.join(home_dir, 'iot_sensor.log')
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
-        filename='/home/pi/iot_sensor.log',  # Save logs to a file
+        filename=log_file,  # Use dynamic path based on user
         filemode='a'  # Append mode
     )
+    logging.info("Starting IoT data collection")
 
     azure_client = None # Initialize to None
     try:
@@ -24,6 +29,7 @@ def main():
 
         # Get sensor readings
         sensor_data = sensors.get_sensor_data()
+        logging.info(f"Sensor data: {sensor_data}")
 
         # Send to Azure if data exists
         if sensor_data:
