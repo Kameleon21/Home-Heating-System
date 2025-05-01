@@ -118,19 +118,58 @@
 
   // 3) Turn raw into timeseries
   function prep(raw) {
-    // sort by timestamp
-    raw.sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
-    
-    // Log the actual property names
-    console.log("Available properties:", Object.keys(raw[0]).join(", "));
-    
-    return {
-      times: raw.map(d=>new Date(d.timestamp)),
-      temp:  raw.map(d=>d.temperature || d.temp || null).filter(Boolean),
-      hum:   raw.map(d=>d.humidity || d.hum || null).filter(Boolean),
-      pres:  raw.map(d=>d.pressure || d.pres || 1009).filter(Boolean),
-      light: raw.map(d=>d.light || d.lightLevel || null).filter(Boolean)
-    };
+    try {
+      // Extract the Body content from each message
+      const extractBody = (item) => {
+        if (!item) return null;
+        
+        // If Body is present and is a string, parse it
+        if (item.Body) {
+          try {
+            // If Body is a JSON string, parse it
+            if (typeof item.Body === 'string') {
+              return JSON.parse(item.Body);
+            }
+            // If Body is already an object, use it directly
+            return item.Body;
+          } catch (e) {
+            console.error("Error parsing Body:", e);
+            return null;
+          }
+        }
+        // If no Body field, return the item itself (maybe it's already extracted)
+        return item;
+      };
+      
+      // Map each raw item to its Body content and filter out nulls
+      const validData = raw.map(extractBody).filter(Boolean);
+      console.log("First extracted body:", validData[0]);
+      
+      // Sort by timestamp
+      validData.sort((a,b) => {
+        // Use EnqueuedTimeUtc if no timestamp in the body
+        const timeA = a.timestamp || (raw.find(r => r.Body === JSON.stringify(a))?.EnqueuedTimeUtc);
+        const timeB = b.timestamp || (raw.find(r => r.Body === JSON.stringify(b))?.EnqueuedTimeUtc);
+        return new Date(timeA) - new Date(timeB);
+      });
+      
+      // Log the actual property names of first valid body
+      if (validData.length > 0) {
+        console.log("Body properties:", Object.keys(validData[0]).join(", "));
+      }
+      
+      return {
+        times: validData.map(d => new Date(d.timestamp || raw.find(r => r.Body === JSON.stringify(d))?.EnqueuedTimeUtc)),
+        temp: validData.map(d => parseFloat(d.temperature || d.temp)).filter(n => !isNaN(n)),
+        hum: validData.map(d => parseFloat(d.humidity || d.hum)).filter(n => !isNaN(n)),
+        pres: validData.map(d => parseFloat(d.pressure || d.pres || 1009)).filter(n => !isNaN(n)),
+        light: validData.map(d => parseFloat(d.light)).filter(n => !isNaN(n)),
+        co2: validData.map(d => parseFloat(d.co2)).filter(n => !isNaN(n))
+      };
+    } catch (err) {
+      console.error("Error in prep:", err);
+      return { times: [], temp: [], hum: [], pres: [], light: [], co2: [] };
+    }
   }
 
   // 4) Draw charts
@@ -176,7 +215,7 @@
     
     console.log(`Data properties: temp=${hasTemp}, humidity=${hasHumidity}, light=${hasLight}, co2=${hasCo2}`);
     
-    const {times,temp,hum,pres,light} = prep(raw);
+    const {times,temp,hum,pres,light,co2} = prep(raw);
     
     // Debug the processed data
     console.log("Processed data lengths:", {
@@ -184,7 +223,8 @@
       temp: temp.length,
       hum: hum.length,
       pres: pres.length,
-      light: light.length
+      light: light.length,
+      co2: co2.length
     });
     
     // Only draw charts if we have data
