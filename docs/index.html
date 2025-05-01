@@ -9,33 +9,208 @@
   <!-- Luxon + adapter for time axis -->
   <script src="https://cdn.jsdelivr.net/npm/luxon@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    body { background: #1e1e1e; color: #eee; font-family: sans-serif; padding: 1rem; }
-    h1 { text-align: center; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-    canvas { background: #2a2a2a; border-radius: 8px; }
+    body { 
+      background: #222; 
+      color: #eee; 
+      font-family: Arial, sans-serif; 
+      padding: 0; 
+      margin: 0;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    h1 { 
+      text-align: center; 
+      margin: 1.5rem 0; 
+      font-size: 1.8rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .grid { 
+      display: grid; 
+      grid-template-columns: 1fr 1fr; 
+      gap: 1.2rem; 
+      padding: 0 1rem 1.5rem;
+    }
+    
+    .chart-container {
+      background: #2a2a2a;
+      border-radius: 5px;
+      padding: 1.2rem 0.5rem 0.8rem;
+      position: relative;
+      height: 300px;
+    }
+    
+    .current-value {
+      margin-bottom: 1rem;
+      padding: 0 1rem;
+      display: flex;
+      align-items: center;
+    }
+    
+    .current-value i {
+      margin-right: 0.5rem;
+      color: #eee;
+      font-size: 1.2rem;
+      width: 20px;
+      text-align: center;
+    }
+    
+    .value-label {
+      font-size: 1rem;
+      text-transform: uppercase;
+      font-weight: 500;
+      margin-right: 0.5rem;
+    }
+    
+    .value-number {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #fff;
+    }
+    
+    .value-unit {
+      font-size: 0.9rem;
+      color: #bbb;
+      margin-left: 0.2rem;
+    }
+    
+    .error-message {
+      color: #ff5555;
+      background: rgba(50, 0, 0, 0.3);
+      padding: 1rem;
+      margin: 1rem;
+      border-radius: 5px;
+      text-align: center;
+    }
+    
+    .debug-info {
+      color: #aaa;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.5rem;
+      margin: 0.5rem;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      font-family: monospace;
+      max-height: 100px;
+      overflow: auto;
+      display: none; /* Hide by default */
+    }
+    
+    #debug-toggle {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      background: rgba(0,0,0,0.5);
+      color: #aaa;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>My Room Air Quality</h1>
+  <h1>
+    MY ROOM AIR QUALITY 
+    <i class="fa-solid fa-house"></i>
+  </h1>
+  
   <div class="grid">
-    <canvas id="chart-temp"></canvas>
-    <canvas id="chart-hum"></canvas>
-    <canvas id="chart-pres"></canvas>
-    <canvas id="chart-light"></canvas>
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="fas fa-temperature-half"></i>
+        <span class="value-label">TEMPERATURE:</span>
+        <span class="value-number" id="current-temp">--.-</span>
+        <span class="value-unit">°C</span>
+      </div>
+      <canvas id="chart-temp"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="fas fa-droplet"></i>
+        <span class="value-label">HUMIDITY:</span>
+        <span class="value-number" id="current-hum">--.-</span>
+        <span class="value-unit">%RH</span>
+      </div>
+      <canvas id="chart-hum"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="fas fa-sun"></i>
+        <span class="value-label">PRESSURE:</span>
+        <span class="value-number" id="current-pres">----</span>
+        <span class="value-unit">hPa</span>
+      </div>
+      <canvas id="chart-pres"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <div class="current-value">
+        <i class="far fa-lightbulb"></i>
+        <span class="value-label">LIGHT:</span>
+        <span class="value-number" id="current-light">--</span>
+        <span class="value-unit">LUX</span>
+      </div>
+      <canvas id="chart-light"></canvas>
+    </div>
   </div>
+  
+  <div id="error-container"></div>
+  <div id="debug-container" class="debug-info"></div>
+  <button id="debug-toggle">Debug</button>
 
   <script>
+  // Configuration
   const account   = 'homeoffice1';
   const container = 'telementry';
-  const sasToken  = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D';  // no leading "?"
+  const sasToken  = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D';
   const baseUrl   = `https://${account}.blob.core.windows.net/${container}`;
+
+  // Chart configuration
+  const chartConfig = {
+    lineColor: '#22ddcc',
+    bgColor: '#2a2a2a',
+    gridColor: '#3a3a3a',
+    fontColor: '#ddd',
+    titleColor: '#fff'
+  };
+
+  // Debug helpers
+  const debugLog = (message) => {
+    console.log(message);
+    const container = document.getElementById('debug-container');
+    if (container) {
+      container.innerHTML += `<div>${message}</div>`;
+    }
+  };
+
+  const showError = (message) => {
+    console.error(message);
+    const container = document.getElementById('error-container');
+    if (container) {
+      container.innerHTML += `<div class="error-message">${message}</div>`;
+    }
+  };
+
+  // Toggle debug info
+  document.getElementById('debug-toggle').addEventListener('click', () => {
+    const container = document.getElementById('debug-container');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+  });
 
   // 1) List all JSON blobs in the container
   async function listBlobs() {
     try {
-      console.log(`Listing blobs from ${baseUrl}`);
+      debugLog(`Listing blobs from ${baseUrl}`);
       const url = `${baseUrl}?restype=container&comp=list&${sasToken}`;
       const res = await fetch(url);
       
@@ -44,23 +219,23 @@
       }
       
       const xml = await res.text();
-      console.log("XML response received, length:", xml.length);
+      debugLog(`XML response received, length: ${xml.length}`);
       
       const dom = new DOMParser().parseFromString(xml, 'application/xml');
       const blobs = Array.from(dom.getElementsByTagName('Blob'))
         .map(b => b.getElementsByTagName('Name')[0].textContent)
         .filter(n => n.endsWith('.json'));
       
-      console.log(`Found ${blobs.length} JSON blobs`);
+      debugLog(`Found ${blobs.length} JSON blobs`);
       if (blobs.length > 0) {
-        console.log("First blob:", blobs[0]);
+        debugLog(`First blob: ${blobs[0]}`);
       } else {
-        console.warn("No JSON blobs found in container");
+        debugLog("No JSON blobs found in container");
       }
       
       return blobs;
     } catch (error) {
-      console.error("Error listing blobs:", error);
+      showError(`Error listing blobs: ${error.message}`);
       throw error;
     }
   }
@@ -69,174 +244,315 @@
   async function loadData() {
     try {
       const names = await listBlobs();
+      
       if (!names || names.length === 0) {
-        console.warn("No blobs found to load");
+        showError("No JSON blobs found. Check your container name and SAS token.");
         return [];
       }
       
       let all = [];
+      
       for (let name of names) {
-        console.log(`Loading blob: ${name}`);
+        debugLog(`Loading blob: ${name}`);
+        
         try {
           const r = await fetch(`${baseUrl}/${name}?${sasToken}`);
           
           if (!r.ok) {
-            console.error(`Failed to fetch ${name}: ${r.status} ${r.statusText}`);
+            debugLog(`Failed to fetch ${name}: ${r.status} ${r.statusText}`);
             continue;
           }
           
           const text = await r.text();
-          console.log(`Received data for ${name}, length: ${text.length}`);
+          debugLog(`Received data for ${name}, length: ${text.length}`);
           
           try {
-            const j = JSON.parse(text);
-            // IoT Hub writes an array of messages per blob
+            let j = JSON.parse(text);
+            
+            // Handle both array and single object formats
             if (Array.isArray(j)) {
-              console.log(`${name} contains an array of ${j.length} items`);
+              debugLog(`${name} contains an array of ${j.length} items`);
               all = all.concat(j);
             } else {
-              console.log(`${name} contains a single object`);
+              debugLog(`${name} contains a single object`);
               all.push(j);
             }
           } catch (parseError) {
-            console.error(`Error parsing JSON from ${name}:`, parseError);
-            console.log("First 100 chars:", text.substring(0, 100));
+            debugLog(`Error parsing JSON from ${name}: ${parseError.message}`);
+            debugLog(`First 100 chars: ${text.substring(0, 100)}`);
           }
         } catch (fetchError) {
-          console.error(`Error fetching blob ${name}:`, fetchError);
+          debugLog(`Error fetching blob ${name}: ${fetchError.message}`);
         }
       }
       
-      console.log(`Total data points loaded: ${all.length}`);
+      debugLog(`Total data points loaded: ${all.length}`);
+      
+      if (all.length === 0) {
+        showError("No data points could be loaded from any blob.");
+      } else {
+        debugLog(`Sample data point: ${JSON.stringify(all[0]).substring(0, 200)}...`);
+      }
+      
       return all;
     } catch (error) {
-      console.error("Error in loadData:", error);
-      document.body.innerHTML += `<div style="color:orange;padding:20px;text-align:center">Error loading data: ${error.message}. Check browser console for details.</div>`;
+      showError(`Error loading data: ${error.message}`);
       return [];
     }
   }
 
-  // 3) Turn raw into timeseries
-  function prep(raw) {
-    try {
-      // Extract the Body content from each message
-      const extractBody = (item) => {
-        if (!item) return null;
-        
-        // If Body is present and is a string, parse it
-        if (item.Body) {
-          try {
-            // If Body is a JSON string, parse it
-            if (typeof item.Body === 'string') {
-              return JSON.parse(item.Body);
-            }
-            // If Body is already an object, use it directly
-            return item.Body;
-          } catch (e) {
-            console.error("Error parsing Body:", e);
-            return null;
-          }
-        }
-        // If no Body field, return the item itself (maybe it's already extracted)
-        return item;
-      };
-      
-      // Map each raw item to its Body content and filter out nulls
-      const validData = raw.map(extractBody).filter(Boolean);
-      console.log("First extracted body:", validData[0]);
-      
-      // Sort by timestamp
-      validData.sort((a,b) => {
-        // Use EnqueuedTimeUtc if no timestamp in the body
-        const timeA = a.timestamp || (raw.find(r => r.Body === JSON.stringify(a))?.EnqueuedTimeUtc);
-        const timeB = b.timestamp || (raw.find(r => r.Body === JSON.stringify(b))?.EnqueuedTimeUtc);
-        return new Date(timeA) - new Date(timeB);
-      });
-      
-      // Log the actual property names of first valid body
-      if (validData.length > 0) {
-        console.log("Body properties:", Object.keys(validData[0]).join(", "));
-      }
-      
-      return {
-        times: validData.map(d => new Date(d.timestamp || raw.find(r => r.Body === JSON.stringify(d))?.EnqueuedTimeUtc)),
-        temp: validData.map(d => parseFloat(d.temperature || d.temp)).filter(n => !isNaN(n)),
-        hum: validData.map(d => parseFloat(d.humidity || d.hum)).filter(n => !isNaN(n)),
-        pres: validData.map(d => parseFloat(d.pressure || d.pres || 1009)).filter(n => !isNaN(n)),
-        light: validData.map(d => parseFloat(d.light)).filter(n => !isNaN(n)),
-        co2: validData.map(d => parseFloat(d.co2)).filter(n => !isNaN(n))
-      };
-    } catch (err) {
-      console.error("Error in prep:", err);
+  // 3) Extract sensor data from raw messages
+  function extractSensorData(rawMessages) {
+    if (!rawMessages || !rawMessages.length) {
       return { times: [], temp: [], hum: [], pres: [], light: [], co2: [] };
     }
+    
+    debugLog("Extracting sensor data from messages...");
+    
+    // Check if we're dealing with IoT Hub events or direct sensor readings
+    const isIoTHubFormat = rawMessages[0].hasOwnProperty('Body') || 
+                            rawMessages[0].hasOwnProperty('EnqueuedTimeUtc');
+    
+    let sensorReadings = [];
+    
+    if (isIoTHubFormat) {
+      debugLog("Processing IoT Hub format messages");
+      
+      // Extract from IoT Hub format (messages with Body field)
+      sensorReadings = rawMessages.map(msg => {
+        try {
+          // Try to parse Body if it's a string
+          if (msg.Body && typeof msg.Body === 'string') {
+            const body = JSON.parse(msg.Body);
+            // Use EnqueuedTimeUtc if the body doesn't have a timestamp
+            if (!body.timestamp && msg.EnqueuedTimeUtc) {
+              body.timestamp = msg.EnqueuedTimeUtc;
+            }
+            return body;
+          } 
+          // If Body is already an object, use it directly
+          else if (msg.Body && typeof msg.Body === 'object') {
+            return msg.Body;
+          } 
+          // Fallback to the message itself if it has sensor fields
+          else if (msg.temperature || msg.humidity || msg.light || msg.co2) {
+            return msg;
+          }
+          // Last resort: empty object with timestamp
+          return { timestamp: msg.EnqueuedTimeUtc };
+        } catch (e) {
+          debugLog(`Error extracting body data: ${e.message}`);
+          return null;
+        }
+      }).filter(Boolean); // Remove null entries
+    } else {
+      // Direct sensor readings format - use as is
+      debugLog("Processing direct sensor reading format");
+      sensorReadings = rawMessages;
+    }
+    
+    if (sensorReadings.length === 0) {
+      showError("Could not extract any sensor readings from the data");
+      return { times: [], temp: [], hum: [], pres: [], light: [], co2: [] };
+    }
+    
+    // Sample the first reading to see what fields we have
+    const sampleReading = sensorReadings[0];
+    debugLog(`Sample reading keys: ${Object.keys(sampleReading).join(', ')}`);
+    
+    // Sort readings by timestamp
+    sensorReadings.sort((a, b) => {
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    });
+    
+    // Extract data series
+    const result = {
+      times: sensorReadings.map(d => new Date(d.timestamp)),
+      temp: sensorReadings.map(d => getNumericValue(d, ['temperature', 'temp'])),
+      hum: sensorReadings.map(d => getNumericValue(d, ['humidity', 'hum'])),
+      pres: sensorReadings.map(d => getNumericValue(d, ['pressure', 'pres'], 1009)),
+      light: sensorReadings.map(d => getNumericValue(d, ['light', 'lightLevel'])),
+      co2: sensorReadings.map(d => getNumericValue(d, ['co2']))
+    };
+    
+    // Log results
+    Object.keys(result).forEach(key => {
+      if (key !== 'times') {
+        const validCount = result[key].filter(v => v !== null).length;
+        debugLog(`${key}: found ${validCount} valid readings`);
+      }
+    });
+    
+    return result;
+  }
+  
+  // Helper to get numeric values with multiple possible field names
+  function getNumericValue(obj, fieldNames, defaultValue = null) {
+    for (const fieldName of fieldNames) {
+      if (obj[fieldName] !== undefined) {
+        const val = parseFloat(obj[fieldName]);
+        if (!isNaN(val)) return val;
+      }
+    }
+    return defaultValue;
   }
 
   // 4) Draw charts
-  function draw(id, label, data, unit) {
-    new Chart(document.getElementById(id), {
+  function drawChart(canvasId, label, data, times, unit) {
+    if (!data || !data.length || !times || !times.length) {
+      debugLog(`No data to draw chart for ${label}`);
+      return null;
+    }
+    
+    // Filter out null/undefined values while keeping the time alignment
+    const validData = data.map((value, index) => {
+      return { x: times[index], y: value };
+    }).filter(point => point.y !== null && point.y !== undefined);
+    
+    if (validData.length === 0) {
+      debugLog(`No valid data points for ${label} after filtering`);
+      return null;
+    }
+    
+    debugLog(`Drawing ${label} chart with ${validData.length} data points`);
+    
+    // Get the canvas context
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      debugLog(`Canvas element ${canvasId} not found`);
+      return null;
+    }
+    
+    // Create and return the chart
+    return new Chart(canvas, {
       type: 'line',
       data: {
-        labels: data.times,
         datasets: [{
           label,
-          data,
-          borderColor: '#22ddaa',
+          data: validData,
+          borderColor: chartConfig.lineColor,
           borderWidth: 2,
           pointRadius: 0,
+          tension: 0.2,
           fill: false
         }]
       },
       options: {
         responsive: true,
-        scales: {
-          x: { type: 'time', time: { tooltipFormat: 'HH:mm' }, grid: { color: '#444' } },
-          y: { title: { display: true, text: unit } }
-        },
+        maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: '#ccc' } },
-          title: { display: true, text: `${label}: ${data[data.length-1]} ${unit}`, color: '#fff' }
+          legend: {
+            display: false
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: '#111',
+            titleColor: '#fff',
+            bodyColor: '#ddd',
+            borderColor: '#333',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: { 
+            type: 'time', 
+            time: { 
+              unit: 'hour',
+              displayFormats: {
+                hour: 'HH:mm'
+              },
+              tooltipFormat: 'HH:mm'
+            }, 
+            grid: { 
+              color: chartConfig.gridColor,
+              drawBorder: false
+            },
+            ticks: {
+              color: chartConfig.fontColor,
+              maxRotation: 0,
+              font: {
+                size: 10
+              }
+            }
+          },
+          y: { 
+            grid: { 
+              color: chartConfig.gridColor,
+              drawBorder: false
+            },
+            ticks: {
+              color: chartConfig.fontColor,
+              font: {
+                size: 10
+              }
+            }
+          }
         }
       }
     });
   }
 
-  // 5) Main
-  loadData().then(raw => {
-    // Debug the data
-    console.log("First data point sample:", raw[0]);
-    document.body.innerHTML += `<div style="color:white;padding:20px;">Data keys in first item: ${Object.keys(raw[0]).join(', ')}</div>`;
+  // 5) Update current values in the UI
+  function updateCurrentValues(data) {
+    function updateValue(elementId, values, formatFunc = v => v.toFixed(1)) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      
+      // Get the last non-null value
+      const lastValues = values.filter(v => v !== null);
+      if (lastValues.length === 0) return;
+      
+      const lastValue = lastValues[lastValues.length - 1];
+      element.textContent = formatFunc(lastValue);
+    }
     
-    // Check which properties exist in the data
-    const hasTemp = raw[0].hasOwnProperty('temperature');
-    const hasHumidity = raw[0].hasOwnProperty('humidity');
-    const hasLight = raw[0].hasOwnProperty('light');
-    const hasCo2 = raw[0].hasOwnProperty('co2');
-    
-    console.log(`Data properties: temp=${hasTemp}, humidity=${hasHumidity}, light=${hasLight}, co2=${hasCo2}`);
-    
-    const {times,temp,hum,pres,light,co2} = prep(raw);
-    
-    // Debug the processed data
-    console.log("Processed data lengths:", {
-      times: times.length,
-      temp: temp.length,
-      hum: hum.length,
-      pres: pres.length,
-      light: light.length,
-      co2: co2.length
-    });
-    
-    // Only draw charts if we have data
-    if (temp.length) draw('chart-temp', 'Temperature', temp, '°C');
-    if (hum.length) draw('chart-hum', 'Humidity', hum, '%RH');
-    if (pres.length) draw('chart-pres', 'Pressure', pres, 'hPa');
-    if (light.length) draw('chart-light', 'Light', light, 'Lux');
-  })
-  .catch(e=> {
-    console.error('Error loading/plotting data', e);
-    document.body.innerHTML += `<div style="color:red;padding:20px;">Error: ${e.message}</div>`;
-  });
+    try {
+      updateValue('current-temp', data.temp);
+      updateValue('current-hum', data.hum);
+      updateValue('current-pres', data.pres, v => Math.round(v));
+      updateValue('current-light', data.light, v => Math.round(v));
+    } catch (error) {
+      debugLog(`Error updating current values: ${error.message}`);
+    }
+  }
+
+  // 6) Main function to load data and render
+  async function initDashboard() {
+    try {
+      // Load data from Azure Blob Storage
+      const rawData = await loadData();
+      
+      if (!rawData || rawData.length === 0) {
+        showError("No data loaded. Check console for details.");
+        return;
+      }
+      
+      // Extract sensor readings from raw data
+      const sensorData = extractSensorData(rawData);
+      
+      // Update current values
+      updateCurrentValues(sensorData);
+      
+      // Draw charts
+      drawChart('chart-temp', 'Temperature', sensorData.temp, sensorData.times, '°C');
+      drawChart('chart-hum', 'Humidity', sensorData.hum, sensorData.times, '%RH');
+      drawChart('chart-pres', 'Pressure', sensorData.pres, sensorData.times, 'hPa');
+      drawChart('chart-light', 'Light', sensorData.light, sensorData.times, 'Lux');
+      
+      // Set up auto-refresh
+      setTimeout(() => {
+        window.location.reload();
+      }, 5 * 60 * 1000); // Refresh every 5 minutes
+      
+    } catch (error) {
+      showError(`Dashboard initialization failed: ${error.message}`);
+      console.error('Dashboard error:', error);
+    }
+  }
+
+  // Start the dashboard
+  window.addEventListener('DOMContentLoaded', initDashboard);
   </script>
 </body>
 </html>
