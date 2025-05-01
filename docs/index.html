@@ -9,145 +9,28 @@
   <!-- Luxon + adapter for time axis -->
   <script src="https://cdn.jsdelivr.net/npm/luxon@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
-  <!-- Font Awesome for icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    body { 
-      background: #222; 
-      color: #eee; 
-      font-family: Arial, sans-serif; 
-      padding: 0; 
-      margin: 0;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    
-    h1 { 
-      text-align: center; 
-      margin: 1.5rem 0; 
-      font-size: 1.8rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    
-    .grid { 
-      display: grid; 
-      grid-template-columns: 1fr 1fr; 
-      gap: 1.2rem; 
-      padding: 0 1rem 1.5rem;
-    }
-    
-    .chart-container {
-      background: #2a2a2a;
-      border-radius: 5px;
-      padding: 1.2rem 0.5rem 0.8rem;
-      position: relative;
-    }
-    
-    .current-value {
-      margin-bottom: 1rem;
-      padding: 0 1rem;
-      display: flex;
-      align-items: center;
-    }
-    
-    .current-value i {
-      margin-right: 0.5rem;
-      color: #eee;
-      font-size: 1.2rem;
-      width: 20px;
-      text-align: center;
-    }
-    
-    .value-label {
-      font-size: 1rem;
-      text-transform: uppercase;
-      font-weight: 500;
-      margin-right: 0.5rem;
-    }
-    
-    .value-number {
-      font-size: 1.1rem;
-      font-weight: bold;
-      color: #fff;
-    }
-    
-    .value-unit {
-      font-size: 0.9rem;
-      color: #bbb;
-      margin-left: 0.2rem;
-    }
-    
-    canvas {
-      width: 100% !important;
-      height: auto !important;
-    }
+    body { background: #1e1e1e; color: #eee; font-family: sans-serif; padding: 1rem; }
+    h1 { text-align: center; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    canvas { background: #2a2a2a; border-radius: 8px; }
   </style>
 </head>
 <body>
-  <h1>
-    MY ROOM AIR QUALITY 
-    <i class="fa-solid fa-house"></i>
-  </h1>
-  
+  <h1>My Room Air Quality</h1>
   <div class="grid">
-    <div class="chart-container">
-      <div class="current-value">
-        <i class="fas fa-temperature-half"></i>
-        <span class="value-label">TEMPERATURE:</span>
-        <span class="value-number" id="current-temp">--.-</span>
-        <span class="value-unit">°C</span>
-      </div>
-      <canvas id="chart-temp"></canvas>
-    </div>
-    
-    <div class="chart-container">
-      <div class="current-value">
-        <i class="fas fa-droplet"></i>
-        <span class="value-label">HUMIDITY:</span>
-        <span class="value-number" id="current-hum">--.-</span>
-        <span class="value-unit">%RH</span>
-      </div>
-      <canvas id="chart-hum"></canvas>
-    </div>
-    
-    <div class="chart-container">
-    <div class="current-value">
-        <i class="fas fa-sun"></i>
-        <span class="value-label">PRESSURE:</span>
-        <span class="value-number" id="current-pres">----</span>
-        <span class="value-unit">hPa</span>
-      </div>
-      <canvas id="chart-pres"></canvas>
-    </div>
-    
-    <div class="chart-container">
-      <div class="current-value">
-        <i class="far fa-lightbulb"></i>
-        <span class="value-label">LIGHT:</span>
-        <span class="value-number" id="current-light">--</span>
-        <span class="value-unit">LUX</span>
-      </div>
-      <canvas id="chart-light"></canvas>
-    </div>
+    <canvas id="chart-temp"></canvas>
+    <canvas id="chart-hum"></canvas>
+    <canvas id="chart-pres"></canvas>
+    <canvas id="chart-light"></canvas>
   </div>
 
   <script>
   const account   = 'homeoffice1';
-  const container = 'telementry';
+  const container = 'telemetry';
   const sasToken  = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D';  // no leading "?"
   const baseUrl   = `https://${account}.blob.core.windows.net/${container}`;
-
-  // Chart configuration
-  const chartConfig = {
-    lineColor: '#22ddcc',
-    bgColor: '#2a2a2a',
-    gridColor: '#3a3a3a',
-    fontColor: '#ddd',
-    titleColor: '#fff'
-  };
 
   // 1) List all JSON blobs in the container
   async function listBlobs() {
@@ -235,194 +118,84 @@
 
   // 3) Turn raw into timeseries
   function prep(raw) {
-    try {
-      // Filter out any items without a timestamp
-      const validData = raw.filter(d => d && d.timestamp);
-      
-      // Sort by timestamp
-      validData.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      // Extract data with safe access
-      const getData = (item, prop, defaultVal = null) => {
-        const val = item[prop];
-        // Check if the value is a valid number
-        return (val !== undefined && val !== null && !isNaN(val)) ? Number(val) : defaultVal;
-      };
-      
-      // Create data series with safe extraction
-      return {
-        times: validData.map(d => new Date(d.timestamp)),
-        temp: validData.map(d => getData(d, 'temperature')).filter(v => v !== null),
-        hum: validData.map(d => getData(d, 'humidity')).filter(v => v !== null),
-        pres: validData.map(d => getData(d, 'pressure', 1009)).filter(v => v !== null),
-        light: validData.map(d => getData(d, 'light')).filter(v => v !== null),
-        co2: validData.map(d => getData(d, 'co2')).filter(v => v !== null)
-      };
-    } catch (err) {
-      console.error("Error preparing data:", err);
-      // Return empty data structure as fallback
-      return { times: [], temp: [], hum: [], pres: [], light: [], co2: [] };
-    }
+    // sort by timestamp
+    raw.sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // Log the actual property names
+    console.log("Available properties:", Object.keys(raw[0]).join(", "));
+    
+    return {
+      times: raw.map(d=>new Date(d.timestamp)),
+      temp:  raw.map(d=>d.temperature || d.temp || null).filter(Boolean),
+      hum:   raw.map(d=>d.humidity || d.hum || null).filter(Boolean),
+      pres:  raw.map(d=>d.pressure || d.pres || 1009).filter(Boolean),
+      light: raw.map(d=>d.light || d.lightLevel || null).filter(Boolean)
+    };
   }
 
   // 4) Draw charts
-  function draw(id, data, unit) {
-    return new Chart(document.getElementById(id), {
+  function draw(id, label, data, unit) {
+    new Chart(document.getElementById(id), {
       type: 'line',
       data: {
         labels: data.times,
         datasets: [{
+          label,
           data,
-          borderColor: chartConfig.lineColor,
-          borderWidth: 1.5,
+          borderColor: '#22ddaa',
+          borderWidth: 2,
           pointRadius: 0,
-          tension: 0.2,
           fill: false
         }]
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            backgroundColor: '#111',
-            titleColor: '#fff',
-            bodyColor: '#ddd',
-            borderColor: '#333',
-            borderWidth: 1
-          }
-        },
         scales: {
-          x: { 
-            type: 'time', 
-            time: { 
-              unit: 'hour',
-              displayFormats: {
-                hour: 'HH:mm'
-              },
-              tooltipFormat: 'HH:mm'
-            }, 
-            grid: { 
-              color: chartConfig.gridColor,
-              drawBorder: false
-            },
-            ticks: {
-              color: chartConfig.fontColor,
-              maxRotation: 0,
-              font: {
-                size: 10
-              }
-            }
-          },
-          y: { 
-            grid: { 
-              color: chartConfig.gridColor,
-              drawBorder: false
-            },
-            ticks: {
-              color: chartConfig.fontColor,
-              font: {
-                size: 10
-              }
-            },
-            title: { 
-              display: false
-            }
-          }
+          x: { type: 'time', time: { tooltipFormat: 'HH:mm' }, grid: { color: '#444' } },
+          y: { title: { display: true, text: unit } }
         },
-        layout: {
-          padding: {
-            top: 5,
-            right: 10,
-            bottom: 0,
-            left: 10
-          }
-        },
-        elements: {
-          line: {
-            borderWidth: 1.5
-          }
+        plugins: {
+          legend: { labels: { color: '#ccc' } },
+          title: { display: true, text: `${label}: ${data[data.length-1]} ${unit}`, color: '#fff' }
         }
       }
     });
   }
 
-  // 5) Update current value displays
-  function updateCurrentValues(data) {
-    try {
-      // Check if we have any data
-      if (!data.temp.length || !data.hum.length || !data.light.length) {
-        console.warn("Some data arrays are empty");
-        return; // Don't update if no data
-      }
-      
-      // Get the latest values, safely
-      const lastTemp = data.temp[data.temp.length-1];
-      const lastHum = data.hum[data.hum.length-1];
-      const lastPres = data.pres && data.pres.length ? data.pres[data.pres.length-1] : 1009;
-      const lastLight = data.light[data.light.length-1];
-      
-      // Only update if values are valid numbers
-      if (typeof lastTemp === 'number') {
-        document.getElementById('current-temp').textContent = lastTemp.toFixed(1);
-      }
-      
-      if (typeof lastHum === 'number') {
-        document.getElementById('current-hum').textContent = lastHum.toFixed(1);
-      }
-      
-      if (typeof lastPres === 'number') {
-        document.getElementById('current-pres').textContent = Math.round(lastPres);
-      }
-      
-      if (typeof lastLight === 'number') {
-        document.getElementById('current-light').textContent = Math.round(lastLight);
-      }
-    } catch (err) {
-      console.error("Error updating values:", err);
-    }
-  }
-
-  // 6) Main
+  // 5) Main
   loadData().then(raw => {
-    // Check if we have any data
-    if (!raw || !raw.length) {
-      throw new Error("No data found in Azure Blob Storage");
-    }
+    // Debug the data
+    console.log("First data point sample:", raw[0]);
+    document.body.innerHTML += `<div style="color:white;padding:20px;">Data keys in first item: ${Object.keys(raw[0]).join(', ')}</div>`;
     
-    const data = prep(raw);
+    // Check which properties exist in the data
+    const hasTemp = raw[0].hasOwnProperty('temperature');
+    const hasHumidity = raw[0].hasOwnProperty('humidity');
+    const hasLight = raw[0].hasOwnProperty('light');
+    const hasCo2 = raw[0].hasOwnProperty('co2');
     
-    // Log what we found for debugging
-    console.log(`Loaded ${raw.length} data points`);
-    console.log("Last data point:", raw[raw.length-1]);
+    console.log(`Data properties: temp=${hasTemp}, humidity=${hasHumidity}, light=${hasLight}, co2=${hasCo2}`);
     
-    // Update current values at the top of charts
-    updateCurrentValues(data);
+    const {times,temp,hum,pres,light} = prep(raw);
     
-    // Draw all charts with safe checks for each dataset
-    if (data.temp && data.temp.length) draw('chart-temp', data.temp, '°C');
-    if (data.hum && data.hum.length) draw('chart-hum', data.hum, '%RH');
-    if (data.pres && data.pres.length) draw('chart-pres', data.pres, 'hPa');
-    if (data.light && data.light.length) draw('chart-light', data.light, 'Lux');
+    // Debug the processed data
+    console.log("Processed data lengths:", {
+      times: times.length,
+      temp: temp.length,
+      hum: hum.length,
+      pres: pres.length,
+      light: light.length
+    });
     
-    // Optional: set up auto-refresh every 5 minutes
-    setInterval(() => {
-      loadData().then(raw => {
-        if (raw && raw.length) {
-          const data = prep(raw);
-          updateCurrentValues(data);
-        }
-      }).catch(e => console.error("Error during auto-refresh:", e));
-    }, 5 * 60 * 1000);
+    // Only draw charts if we have data
+    if (temp.length) draw('chart-temp', 'Temperature', temp, '°C');
+    if (hum.length) draw('chart-hum', 'Humidity', hum, '%RH');
+    if (pres.length) draw('chart-pres', 'Pressure', pres, 'hPa');
+    if (light.length) draw('chart-light', 'Light', light, 'Lux');
   })
   .catch(e=> {
     console.error('Error loading/plotting data', e);
-    document.body.innerHTML += `<div style="color:red;padding:20px;text-align:center">Error loading data: ${e.message}</div>`;
+    document.body.innerHTML += `<div style="color:red;padding:20px;">Error: ${e.message}</div>`;
   });
   </script>
 </body>
