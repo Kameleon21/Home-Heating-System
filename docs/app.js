@@ -72,52 +72,74 @@ async function loadData() {
 //  3) Prepare series for Highcharts
 // ————————————————————————————
 function prepareSeries(items) {
-  console.log('Preparing series with items:', items);
+  console.log('Preparing series with original items:', items);
   
-  // Extract data from Body if present (IoT Hub format)
+  // Extract data from Body if present, preserving timestamp
   const cleanItems = items.map(item => {
+    if (!item) return null; // Skip null items
+
+    let bodyData = null;
     if (item.Body) {
-      // If Body is a string, parse it
       if (typeof item.Body === 'string') {
         try {
-          return JSON.parse(item.Body);
+          bodyData = JSON.parse(item.Body);
         } catch (e) {
-          console.warn('Failed to parse Body:', e);
-          return null;
+          console.warn('Failed to parse Body:', item.Body, e);
+          return null; // Skip if Body parsing fails
         }
+      } else if (typeof item.Body === 'object') {
+        bodyData = item.Body;
       }
-      // If Body is already an object, use it directly
-      return item.Body;
+    } else {
+      // If no Body, assume the item itself contains sensor data + timestamp
+      bodyData = item;
     }
-    // If no Body property, assume direct sensor data
-    return item;
+
+    if (!bodyData) return null; // Skip if no usable data found
+
+    // Ensure timestamp exists, preferring 'timestamp' over 'EnqueuedTimeUtc'
+    const timestamp = bodyData.timestamp || item.SystemProperties?.enqueuedTime || item.EnqueuedTimeUtc;
+    if (!timestamp) {
+        console.warn('Missing timestamp for item:', item);
+        return null; // Skip if no timestamp found
+    }
+
+    // Return a new object with sensor data and a unified 'timestamp' field
+    return {
+      ...bodyData, // Spread sensor values (temp, hum, etc.)
+      timestamp: timestamp // Add the timestamp
+    };
+    
   }).filter(item => item !== null);
 
-  console.log('Cleaned items:', cleanItems);
+  console.log('Cleaned items with timestamp:', cleanItems);
   
-  // sort by timestamp (use EnqueuedTimeUtc if no timestamp)
-  cleanItems.sort((a, b) => {
-    const timeA = new Date(a.timestamp || a.EnqueuedTimeUtc);
-    const timeB = new Date(b.timestamp || b.EnqueuedTimeUtc);
-    return timeA - timeB;
-  });
+  if (cleanItems.length === 0) {
+    console.warn("No valid items left after cleaning and timestamp check.");
+    return { temperature: [], humidity: [], pressure: [], light: [] }; // Return empty series
+  }
+
+  // sort by timestamp
+  cleanItems.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
   // helper to pluck and timestamp-convert
   function pluck(field) {
     const points = cleanItems
       .map(d => {
-        if (!d) {
-          console.warn('Invalid data point:', d);
-          return null;
-        }
-        // Use EnqueuedTimeUtc if no timestamp
-        const t = new Date(d.timestamp || d.EnqueuedTimeUtc).getTime();
+        // Timestamp is now guaranteed to exist in 'd.timestamp'
+        const t = new Date(d.timestamp).getTime(); 
         const v = parseFloat(d[field]);
-        return isNaN(v) ? null : [t, v];
+        
+        // Check for NaN timestamp or value
+        if (isNaN(t) || isNaN(v)) {
+            // console.warn(`Invalid data for field ${field}:`, d); // Optional: more detailed logging
+            return null; 
+        }
+        return [t, v];
       })
-      .filter(pt => pt !== null);
+      .filter(pt => pt !== null); // Filter out nulls from invalid timestamps/values
       
-    console.log(`Field ${field} has ${points.length} valid points`);
+    console.log(`Field '${field}' has ${points.length} valid points`);
     return points;
   }
 
