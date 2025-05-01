@@ -2,23 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8"/>
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>My Room Conditions</title>
 
-    <!-- Highcharts core + dark theme -->
-    <script src="https://code.highcharts.com/highcharts.js"></script>
-    <script src="https://code.highcharts.com/themes/dark-unica.js"></script>
+    <!-- Chart.js for charting -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-    <!-- moment for timezone handling -->
+    <!-- Moment.js for timezone handling -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
 
-    <!-- Semantic UI just for layout/icons (optional) -->
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css" />
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/components/icon.min.css" />
+    <!-- Semantic UI for layout/icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/components/icon.min.css" />
 
     <style>
       body {
@@ -33,6 +29,9 @@
       .ui.grid > .column {
         padding: 0.5rem;
       }
+      canvas {
+        max-height: 350px;
+      }
     </style>
   </head>
 
@@ -42,20 +41,28 @@
         My Room Conditions <i class="home icon"></i>
       </h1>
       <div class="ui stackable grid">
-        <div id="temperature" class="eight wide column" style="height: 350px;"></div>
-        <div id="humidity"    class="eight wide column" style="height: 350px;"></div>
-        <div id="co2"         class="eight wide column" style="height: 350px;"></div>
-        <div id="light"       class="eight wide column" style="height: 350px;"></div>
+        <div class="eight wide column">
+          <canvas id="temperatureChart"></canvas>
+        </div>
+        <div class="eight wide column">
+          <canvas id="humidityChart"></canvas>
+        </div>
+        <div class="eight wide column">
+          <canvas id="co2Chart"></canvas>
+        </div>
+        <div class="eight wide column">
+          <canvas id="lightChart"></canvas>
+        </div>
       </div>
     </div>
 
-    <!-- Your app logic -->
+    <!-- App logic -->
     <script src="app.js"></script>
     <script>
       // Kick things off
       loadData()
         .then(data => renderCharts(data))
-        .catch(err => console.error(err));
+        .catch(err => console.error('Error loading data:', err));
     </script>
   </body>
 </html>

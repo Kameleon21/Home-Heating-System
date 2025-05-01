@@ -1,18 +1,11 @@
-// ————————————————————————————
-//  CONFIGURATION
-// ————————————————————————————
-
+// Configuration
 const ACCOUNT   = 'homeoffice1';
-const CONTAINER = 'telementry';   // <— make sure this exactly matches your container name
-const SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D'; // <— your container‐level SAS token (no leading "?")
+const CONTAINER = 'telementry';
+const SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2026-05-01T19:22:12Z&st=2025-05-01T11:22:12Z&spr=https&sig=F1rO3kwekla0ZgwLntABz5KzbhufD1S4zxLMfAsHbTk%3D'; // Replace with your actual SAS token
 const BASE_URL  = `https://${ACCOUNT}.blob.core.windows.net/${CONTAINER}`;
-
-// How many past points to show (optional)
 const MAX_POINTS = 300;
 
-// ————————————————————————————
-//  1) List blobs in container
-// ————————————————————————————
+// List blobs in container
 async function listBlobs() {
   const url = `${BASE_URL}?restype=container&comp=list&${SAS_TOKEN}`;
   const res = await fetch(url);
@@ -24,9 +17,7 @@ async function listBlobs() {
     .filter(n => n.endsWith('.json'));
 }
 
-// ————————————————————————————
-//  2) Download & flatten JSON from each blob
-// ————————————————————————————
+// Download & flatten JSON from each blob
 async function loadData() {
   const names = await listBlobs();
   console.log('Found blobs:', names);
@@ -44,7 +35,6 @@ async function loadData() {
       
       try {
         const json = JSON.parse(text);
-        // IoT Hub writes an array per file; could also be a single object
         if (Array.isArray(json)) {
           console.log(`${name} contains array of ${json.length} items`);
           all = all.concat(json);
@@ -68,15 +58,13 @@ async function loadData() {
   return all;
 }
 
-// ————————————————————————————
-//  3) Prepare series for Highcharts
-// ————————————————————————————
+// Prepare series for Chart.js
 function prepareSeries(items) {
   console.log('Preparing series with original items:', items);
   
   // Extract data from Body if present, preserving timestamp
   const cleanItems = items.map(item => {
-    if (!item) return null; // Skip null items
+    if (!item) return null;
 
     let bodyData = null;
     if (item.Body) {
@@ -85,60 +73,48 @@ function prepareSeries(items) {
           bodyData = JSON.parse(item.Body);
         } catch (e) {
           console.warn('Failed to parse Body:', item.Body, e);
-          return null; // Skip if Body parsing fails
+          return null;
         }
       } else if (typeof item.Body === 'object') {
         bodyData = item.Body;
       }
     } else {
-      // If no Body, assume the item itself contains sensor data + timestamp
       bodyData = item;
     }
 
-    if (!bodyData) return null; // Skip if no usable data found
+    if (!bodyData) return null;
 
-    // Ensure timestamp exists, preferring 'timestamp' over 'EnqueuedTimeUtc'
     const timestamp = bodyData.timestamp || item.SystemProperties?.enqueuedTime || item.EnqueuedTimeUtc;
     if (!timestamp) {
-        console.warn('Missing timestamp for item:', item);
-        return null; // Skip if no timestamp found
+      console.warn('Missing timestamp for item:', item);
+      return null;
     }
 
-    // Return a new object with sensor data and a unified 'timestamp' field
     return {
-      ...bodyData, // Spread sensor values (temp, hum, etc.)
-      timestamp: timestamp // Add the timestamp
+      ...bodyData,
+      timestamp: timestamp
     };
-    
   }).filter(item => item !== null);
 
   console.log('Cleaned items with timestamp:', cleanItems);
   
   if (cleanItems.length === 0) {
     console.warn("No valid items left after cleaning and timestamp check.");
-    // Return empty series with the correct keys
-    return { temperature: [], humidity: [], co2: [], light: [] }; 
+    return { temperature: [], humidity: [], co2: [], light: [] };
   }
 
-  // sort by timestamp
   cleanItems.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-  // helper to pluck and timestamp-convert
+  // Helper to pluck and format data for Chart.js
   function pluck(field) {
     const points = cleanItems
       .map(d => {
-        // Timestamp is now guaranteed to exist in 'd.timestamp'
-        const t = new Date(d.timestamp).getTime(); 
+        const t = new Date(d.timestamp);
         const v = parseFloat(d[field]);
-        
-        // Check for NaN timestamp or value
-        if (isNaN(t) || isNaN(v)) {
-            // console.warn(`Invalid data for field ${field}:`, d); // Optional: more detailed logging
-            return null; 
-        }
-        return [t, v];
+        if (isNaN(t.getTime()) || isNaN(v)) return null;
+        return { x: t, y: v };
       })
-      .filter(pt => pt !== null); // Filter out nulls from invalid timestamps/values
+      .filter(pt => pt !== null);
       
     console.log(`Field '${field}' has ${points.length} valid points`);
     return points;
@@ -146,18 +122,16 @@ function prepareSeries(items) {
 
   const series = {
     temperature: pluck('temperature'),
-    humidity:    pluck('humidity'),
-    co2:         pluck('co2'),
-    light:       pluck('light')
+    humidity: pluck('humidity'),
+    co2: pluck('co2'),
+    light: pluck('light')
   };
   
   console.log('Prepared series:', series);
   return series;
 }
 
-// ————————————————————————————
-//  4) Render 4 charts with Highcharts
-// ————————————————————————————
+// Render charts with Chart.js
 function renderCharts(rawItems) {
   if (!rawItems || rawItems.length === 0) {
     console.error('No data points to render');
@@ -166,90 +140,217 @@ function renderCharts(rawItems) {
 
   console.log('Rendering charts with', rawItems.length, 'items');
   const series = prepareSeries(rawItems);
-  
-  // Safely get latest values with better error handling
+
+  // Get latest values for chart titles
   const getLatest = (arr) => {
-    if (!Array.isArray(arr) || arr.length === 0) return null; // Return null if no data
+    if (!Array.isArray(arr) || arr.length === 0) return null;
     const lastPoint = arr[arr.length - 1];
-    // Ensure lastPoint is an array [timestamp, value] and value is numeric
-    if (Array.isArray(lastPoint) && typeof lastPoint[1] === 'number' && !isNaN(lastPoint[1])) {
-        return lastPoint[1];
+    if (lastPoint && typeof lastPoint.y === 'number' && !isNaN(lastPoint.y)) {
+      return lastPoint.y;
     }
-    return null; // Return null if data is invalid
+    return null;
   };
 
   const latest = {
     temp: getLatest(series.temperature),
-    hum:  getLatest(series.humidity),
-    co2:  getLatest(series.co2),
+    hum: getLatest(series.humidity),
+    co2: getLatest(series.co2),
     light: getLatest(series.light)
   };
 
-  const commonOpts = {
-    time: { timezone: moment.tz.guess() },
-    chart: { backgroundColor: 'transparent' },
-    xAxis: { type: 'datetime' },
-    legend: { enabled: false },
-    credits: { enabled: false },
-    plotOptions: { series: { marker: { enabled: false } } }
+  // Common chart options
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: {
+        type: 'time',
+        time: {
+          unit: 'minute',
+          tooltipFormat: 'MMM DD, YYYY HH:mm',
+          displayFormats: {
+            minute: 'HH:mm'
+          }
+        },
+        title: {
+          display: true,
+          text: 'Time',
+          color: '#eee'
+        },
+        ticks: {
+          color: '#eee'
+        }
+      },
+      y: {
+        ticks: {
+          color: '#eee'
+        }
+      }
+    },
+    plugins: {
+      legend: {
+        display: false
+      }
+    }
   };
 
-  Highcharts.setOptions(Highcharts.theme);
-
-  // Only render chart if data exists
+  // Temperature chart
   if (series.temperature.length > 0) {
-    Highcharts.chart('temperature', {
-      ...commonOpts,
-      title: { useHTML: true,
-        text: `<i class="thermometer half icon"></i>
-               Temperature: ${latest.temp !== null ? latest.temp.toFixed(1) + '℃' : 'N/A'}`
+    new Chart(document.getElementById('temperatureChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: series.temperature,
+          borderColor: '#ff6384',
+          fill: false
+        }]
       },
-      yAxis: { title: { text: '℃' } },
-      series: [{ data: series.temperature }]
+      options: {
+        ...commonOptions,
+        plugins: {
+          ...commonOptions.plugins,
+          title: {
+            display: true,
+            text: `Temperature: ${latest.temp !== null ? latest.temp.toFixed(1) + '℃' : 'N/A'}`,
+            color: '#eee'
+          }
+        },
+        scales: {
+          ...commonOptions.scales,
+          y: {
+            title: {
+              display: true,
+              text: '℃',
+              color: '#eee'
+            },
+            ticks: {
+              color: '#eee'
+            }
+          }
+        }
+      }
     });
   } else {
-      document.getElementById('temperature').innerHTML = '<p style="text-align: center; padding-top: 50px;">Temperature data not available.</p>';
+    document.getElementById('temperatureChart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">Temperature data not available.</p>';
   }
 
+  // Humidity chart
   if (series.humidity.length > 0) {
-    Highcharts.chart('humidity', {
-      ...commonOpts,
-      title: { useHTML: true,
-        text: `<i class="tint icon"></i>
-               Humidity: ${latest.hum !== null ? latest.hum.toFixed(1) + ' %RH' : 'N/A'}`
+    new Chart(document.getElementById('humidityChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: series.humidity,
+          borderColor: '#36a2eb',
+          fill: false
+        }]
       },
-      yAxis: { title: { text: '%RH' } },
-      series: [{ data: series.humidity }]
+      options: {
+        ...commonOptions,
+        plugins: {
+          ...commonOptions.plugins,
+          title: {
+            display: true,
+            text: `Humidity: ${latest.hum !== null ? latest.hum.toFixed(1) + ' %RH' : 'N/A'}`,
+            color: '#eee'
+          }
+        },
+        scales: {
+          ...commonOptions.scales,
+          y: {
+            title: {
+              display: true,
+              text: '%RH',
+              color: '#eee'
+            },
+            ticks: {
+              color: '#eee'
+            }
+          }
+        }
+      }
     });
   } else {
-      document.getElementById('humidity').innerHTML = '<p style="text-align: center; padding-top: 50px;">Humidity data not available.</p>';
+    document.getElementById('humidityChart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">Humidity data not available.</p>';
   }
 
+  // CO2 chart
   if (series.co2.length > 0) {
-    Highcharts.chart('co2', {
-      ...commonOpts,
-      title: { useHTML: true,
-        text: `<i class="molecule icon"></i>
-               CO2: ${latest.co2 !== null ? Math.round(latest.co2) + ' PPM' : 'N/A'}`
+    new Chart(document.getElementById('co2Chart').getContext('2d'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: series.co2,
+          borderColor: '#ffcd56',
+          fill: false
+        }]
       },
-      yAxis: { title: { text: 'PPM' } },
-      series: [{ data: series.co2 }]
+      options: {
+        ...commonOptions,
+        plugins: {
+          ...commonOptions.plugins,
+          title: {
+            display: true,
+            text: `CO2: ${latest.co2 !== null ? Math.round(latest.co2) + ' PPM' : 'N/A'}`,
+            color: '#eee'
+          }
+        },
+        scales: {
+          ...commonOptions.scales,
+          y: {
+            title: {
+              display: true,
+              text: 'PPM',
+              color: '#eee'
+            },
+            ticks: {
+              color: '#eee'
+            }
+          }
+        }
+      }
     });
   } else {
-      document.getElementById('co2').innerHTML = '<p style="text-align: center; padding-top: 50px;">CO2 data not available.</p>';
+    document.getElementById('co2Chart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">CO2 data not available.</p>';
   }
 
+  // Light chart
   if (series.light.length > 0) {
-    Highcharts.chart('light', {
-      ...commonOpts,
-      title: { useHTML: true,
-        text: `<i class="lightbulb icon"></i>
-               Light: ${latest.light !== null ? Math.round(latest.light) + ' lux' : 'N/A'}`
+    new Chart(document.getElementById('lightChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: series.light,
+          borderColor: '#4bc0c0',
+          fill: false
+        }]
       },
-      yAxis: { title: { text: 'Lux' } },
-      series: [{ data: series.light }]
+      options: {
+        ...commonOptions,
+        plugins: {
+          ...commonOptions.plugins,
+          title: {
+            display: true,
+            text: `Light: ${latest.light !== null ? Math.round(latest.light) + ' lux' : 'N/A'}`,
+            color: '#eee'
+          }
+        },
+        scales: {
+          ...commonOptions.scales,
+          y: {
+            title: {
+              display: true,
+              text: 'Lux',
+              color: '#eee'
+            },
+            ticks: {
+              color: '#eee'
+            }
+          }
+        }
+      }
     });
   } else {
-      document.getElementById('light').innerHTML = '<p style="text-align: center; padding-top: 50px;">Light data not available.</p>';
+    document.getElementById('lightChart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">Light data not available.</p>';
   }
 }
