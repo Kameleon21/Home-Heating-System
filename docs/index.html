@@ -131,16 +131,67 @@
         });
         charts = [];
         
-        // Load fresh data
-        loadData()
-          .then(data => renderCharts(data))
-          .catch(err => console.error('Error loading data:', err))
-          .finally(() => {
-            // Reset button state
-            isLoading = false;
-            refreshButton.disabled = false;
-            refreshButton.innerHTML = originalHTML;
-          });
+        // Show status message
+        function showLoadingMessage(message) {
+          console.log(message);
+          
+          // If charts aren't visible yet, show loading message in UI
+          if (charts.length === 0) {
+            const containers = document.querySelectorAll('.chart-wrapper');
+            if (containers.length > 0) {
+              containers[0].innerHTML = `
+                <div class="flex items-center justify-center h-full">
+                  <p class="text-white text-center">${message}</p>
+                </div>
+              `;
+            }
+          }
+        }
+        
+        // Load fresh data with retry mechanism
+        let retryCount = 0;
+        const maxRetries = 2;
+        
+        function attemptDataLoad() {
+          showLoadingMessage(`Loading data... ${retryCount > 0 ? '(Retry ' + retryCount + ')' : ''}`);
+          
+          loadData()
+            .then(data => {
+              if (data && data.length > 0) {
+                renderCharts(data);
+              } else {
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  showLoadingMessage(`No data received. Retrying (${retryCount}/${maxRetries})...`);
+                  setTimeout(attemptDataLoad, 1500); // Wait before retry
+                } else {
+                  showLoadingMessage("Couldn't load data after multiple attempts. Please try again later.");
+                  console.error("Failed to load data after retries");
+                }
+              }
+            })
+            .catch(err => {
+              console.error('Error loading data:', err);
+              if (retryCount < maxRetries) {
+                retryCount++;
+                showLoadingMessage(`Error loading data. Retrying (${retryCount}/${maxRetries})...`);
+                setTimeout(attemptDataLoad, 1500); // Wait before retry
+              } else {
+                showLoadingMessage("Couldn't load data. Please check your connection and try again.");
+              }
+            })
+            .finally(() => {
+              if (retryCount >= maxRetries || charts.length > 0) {
+                // Reset button state
+                isLoading = false;
+                refreshButton.disabled = false;
+                refreshButton.innerHTML = originalHTML;
+              }
+            });
+        }
+        
+        // Start loading with retry mechanism
+        attemptDataLoad();
       }
       
       // Add click event to refresh button

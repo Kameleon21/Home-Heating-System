@@ -7,55 +7,86 @@ const MAX_POINTS = 300;
 
 // List blobs in container
 async function listBlobs() {
-  const url = `${BASE_URL}?restype=container&comp=list&${SAS_TOKEN}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`List blobs failed: ${res.status}`);
-  const xml = await res.text();
-  const dom = new DOMParser().parseFromString(xml, 'application/xml');
-  return Array.from(dom.getElementsByTagName('Blob'))
-    .map(b => b.getElementsByTagName('Name')[0].textContent)
-    .filter(n => n.endsWith('.json'));
+  try {
+    const url = `${BASE_URL}?restype=container&comp=list&${SAS_TOKEN}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-cache',
+      headers: {
+        'x-ms-version': '2020-04-08'
+      }
+    });
+    
+    if (!res.ok) throw new Error(`List blobs failed: ${res.status}`);
+    const xml = await res.text();
+    const dom = new DOMParser().parseFromString(xml, 'application/xml');
+    return Array.from(dom.getElementsByTagName('Blob'))
+      .map(b => b.getElementsByTagName('Name')[0].textContent)
+      .filter(n => n.endsWith('.json'));
+  } catch (error) {
+    console.error('Error listing blobs:', error);
+    return [];
+  }
 }
 
 // Download & flatten JSON from each blob
 async function loadData() {
-  const names = await listBlobs();
-  console.log('Found blobs:', names);
-  
-  let all = [];
-  for (let name of names) {
-    try {
-      const r = await fetch(`${BASE_URL}/${name}?${SAS_TOKEN}`);
-      if (!r.ok) {
-        console.error(`Failed to fetch ${name}: ${r.status}`);
-        continue;
-      }
-      const text = await r.text();
-      console.log(`Raw data from ${name}:`, text.substring(0, 200) + '...');
-      
-      try {
-        const json = JSON.parse(text);
-        if (Array.isArray(json)) {
-          console.log(`${name} contains array of ${json.length} items`);
-          all = all.concat(json);
-        } else {
-          console.log(`${name} contains single object:`, json);
-          all.push(json);
-        }
-      } catch (parseError) {
-        console.error(`Failed to parse JSON from ${name}:`, parseError);
-      }
-    } catch (fetchError) {
-      console.error(`Failed to fetch ${name}:`, fetchError);
+  try {
+    const names = await listBlobs();
+    console.log('Found blobs:', names);
+    
+    if (names.length === 0) {
+      console.warn('No blobs found. Check your storage account configuration.');
+      return [];
     }
+    
+    let all = [];
+    for (let name of names) {
+      try {
+        const r = await fetch(`${BASE_URL}/${name}?${SAS_TOKEN}`, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache',
+          headers: {
+            'x-ms-version': '2020-04-08'
+          }
+        });
+        
+        if (!r.ok) {
+          console.error(`Failed to fetch ${name}: ${r.status}`);
+          continue;
+        }
+        const text = await r.text();
+        console.log(`Raw data from ${name}:`, text.substring(0, 200) + '...');
+        
+        try {
+          const json = JSON.parse(text);
+          if (Array.isArray(json)) {
+            console.log(`${name} contains array of ${json.length} items`);
+            all = all.concat(json);
+          } else {
+            console.log(`${name} contains single object:`, json);
+            all.push(json);
+          }
+        } catch (parseError) {
+          console.error(`Failed to parse JSON from ${name}:`, parseError);
+        }
+      } catch (fetchError) {
+        console.error(`Failed to fetch ${name}:`, fetchError);
+      }
+    }
+    
+    console.log('Total items loaded:', all.length);
+    if (all.length > 0) {
+      console.log('Sample item:', all[0]);
+    }
+    
+    return all;
+  } catch (error) {
+    console.error('Error loading data:', error);
+    return [];
   }
-  
-  console.log('Total items loaded:', all.length);
-  if (all.length > 0) {
-    console.log('Sample item:', all[0]);
-  }
-  
-  return all;
 }
 
 // Prepare series for Chart.js
@@ -104,18 +135,39 @@ function prepareSeries(items) {
   }
 
   // Always filter for today's data
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // Start of today
+  // Create today at midnight in local timezone
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  console.log('Filtering items starting from:', today.toISOString());
   
   const todayItems = cleanItems.filter(item => {
-    const itemDate = new Date(item.timestamp);
-    return itemDate >= today;
+    try {
+      const itemDate = new Date(item.timestamp);
+      const isToday = itemDate >= today;
+      return isToday;
+    } catch (error) {
+      console.warn('Error parsing date:', item.timestamp, error);
+      return false;
+    }
   });
   
   console.log(`Filtered to ${todayItems.length} items from today out of ${cleanItems.length} total items`);
   
   // Use today's items if available, otherwise fall back to all data
   let itemsToProcess = todayItems.length > 0 ? todayItems : cleanItems;
+  
+  // For debugging
+  if (todayItems.length === 0) {
+    console.warn('No items found for today, showing all data instead');
+    // Log the earliest and latest timestamps in the data
+    if (cleanItems.length > 0) {
+      const dates = cleanItems.map(item => new Date(item.timestamp));
+      const earliest = new Date(Math.min(...dates));
+      const latest = new Date(Math.max(...dates));
+      console.log('Date range in data:', earliest.toISOString(), 'to', latest.toISOString());
+    }
+  }
   
   itemsToProcess.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
