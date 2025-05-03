@@ -135,17 +135,20 @@
         function showLoadingMessage(message) {
           console.log(message);
           
-          // If charts aren't visible yet, show loading message in UI
-          if (charts.length === 0) {
-            const containers = document.querySelectorAll('.chart-wrapper');
-            if (containers.length > 0) {
-              containers[0].innerHTML = `
-                <div class="flex items-center justify-center h-full">
-                  <p class="text-white text-center">${message}</p>
-                </div>
-              `;
-            }
+          // Create or update loading overlay
+          let loadingOverlay = document.getElementById('loadingOverlay');
+          if (!loadingOverlay) {
+            loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'loadingOverlay';
+            loadingOverlay.className = 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50';
+            document.body.appendChild(loadingOverlay);
           }
+          
+          loadingOverlay.innerHTML = `
+            <div class="bg-gray-800 rounded-lg p-4 max-w-md text-center">
+              <p class="text-white text-lg mb-2">${message}</p>
+            </div>
+          `;
         }
         
         // Load fresh data with retry mechanism

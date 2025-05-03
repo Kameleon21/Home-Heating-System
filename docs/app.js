@@ -314,9 +314,61 @@ function renderCharts(rawItems) {
     }
   };
 
+  // Helper function to safely get canvas context
+  function getCanvasContext(elementId) {
+    try {
+      const canvas = document.getElementById(elementId);
+      
+      if (!canvas) {
+        console.error(`Canvas element '${elementId}' not found`);
+        return null;
+      }
+      
+      // Ensure we're working with a proper canvas element
+      if (!(canvas instanceof HTMLCanvasElement)) {
+        console.error(`Element '${elementId}' is not a canvas element`);
+        return null;
+      }
+      
+      // Get 2d context
+      const context = canvas.getContext('2d');
+      if (!context) {
+        console.error(`Could not get 2d context for canvas '${elementId}'`);
+        return null;
+      }
+      
+      return context;
+    } catch (error) {
+      console.error(`Error getting canvas context for '${elementId}':`, error);
+      return null;
+    }
+  }
+
+  // Helper function to safely create chart
+  function createChart(elementId, config) {
+    const ctx = getCanvasContext(elementId);
+    if (!ctx) {
+      // If we can't get the context, show error in the chart container
+      const container = document.getElementById(elementId)?.parentElement;
+      if (container) {
+        container.innerHTML = `<div class="flex items-center justify-center h-full">
+          <p class="text-white text-center">Error rendering chart. Please refresh the page.</p>
+        </div>`;
+      }
+      return null;
+    }
+    
+    try {
+      return new Chart(ctx, config);
+    } catch (error) {
+      console.error(`Error creating chart for '${elementId}':`, error);
+      return null;
+    }
+  }
+
   // Temperature chart
   if (series.temperature.length > 0) {
-    charts[0] = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
+    charts[0] = createChart('temperatureChart', {
       type: 'line',
       data: {
         datasets: [{
@@ -354,12 +406,15 @@ function renderCharts(rawItems) {
       }
     });
   } else {
-    document.getElementById('temperatureChart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">Temperature data not available.</p>';
+    const container = document.getElementById('temperatureChart')?.parentElement;
+    if (container) {
+      container.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-white text-center">Temperature data not available.</p></div>';
+    }
   }
 
   // Humidity chart
   if (series.humidity.length > 0) {
-    charts[1] = new Chart(document.getElementById('humidityChart').getContext('2d'), {
+    charts[1] = createChart('humidityChart', {
       type: 'line',
       data: {
         datasets: [{
@@ -397,12 +452,15 @@ function renderCharts(rawItems) {
       }
     });
   } else {
-    document.getElementById('humidityChart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">Humidity data not available.</p>';
+    const container = document.getElementById('humidityChart')?.parentElement;
+    if (container) {
+      container.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-white text-center">Humidity data not available.</p></div>';
+    }
   }
 
   // CO2 chart
   if (series.co2.length > 0) {
-    charts[2] = new Chart(document.getElementById('co2Chart').getContext('2d'), {
+    charts[2] = createChart('co2Chart', {
       type: 'line',
       data: {
         datasets: [{
@@ -440,12 +498,15 @@ function renderCharts(rawItems) {
       }
     });
   } else {
-    document.getElementById('co2Chart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">CO2 data not available.</p>';
+    const container = document.getElementById('co2Chart')?.parentElement;
+    if (container) {
+      container.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-white text-center">CO2 data not available.</p></div>';
+    }
   }
 
   // Light chart
   if (series.light.length > 0) {
-    charts[3] = new Chart(document.getElementById('lightChart').getContext('2d'), {
+    charts[3] = createChart('lightChart', {
       type: 'line',
       data: {
         datasets: [{
@@ -483,6 +544,15 @@ function renderCharts(rawItems) {
       }
     });
   } else {
-    document.getElementById('lightChart').parentElement.innerHTML = '<p style="text-align: center; padding-top: 50px; color: #eee;">Light data not available.</p>';
+    const container = document.getElementById('lightChart')?.parentElement;
+    if (container) {
+      container.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-white text-center">Light data not available.</p></div>';
+    }
+  }
+  
+  // Hide any loading overlay
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  if (loadingOverlay) {
+    loadingOverlay.remove();
   }
 }
