@@ -7,50 +7,95 @@
 
     <!-- Chart.js for charting -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <!-- Chart.js date adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
     <!-- Moment.js for timezone handling -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
 
-    <!-- Semantic UI for layout/icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/components/icon.min.css" />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
       body {
-        background: #2a2a2b;
+        background-color: #2a2a2b;
         color: #eee;
-        padding: 1rem;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       }
-      h1 {
-        text-align: center;
-        margin-bottom: 1.5rem;
+      
+      .chart-wrapper {
+        position: relative;
+        border: 1px solid #444;
+        border-radius: 0.375rem;
+        background: rgba(0,0,0,0.2);
+        height: 100%;
       }
-      .ui.grid > .column {
-        padding: 0.5rem;
+      
+      .home-icon {
+        display: inline-block;
+        width: 1.5em;
+        height: 1.5em;
+        vertical-align: middle;
       }
-      canvas {
-        max-height: 350px;
+      
+      /* Desktop/laptop view - ensure equal sized charts */
+      @media (min-width: 768px) {
+        .chart-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: 1fr 1fr;
+          gap: 1rem;
+          height: calc(100vh - 80px);
+        }
+        
+        .chart-wrapper {
+          min-height: 300px;
+        }
+      }
+      
+      /* Handle very small screens */
+      @media (max-height: 600px) {
+        .chart-grid {
+          grid-template-rows: repeat(4, 40vh);
+          overflow-y: auto;
+          height: auto;
+          padding-bottom: 1rem;
+        }
       }
     </style>
   </head>
 
   <body>
-    <div class="ui container">
-      <h1 class="ui header">
-        My Room Conditions <i class="home icon"></i>
-      </h1>
-      <div class="ui stackable grid">
-        <div class="eight wide column">
+    <div class="min-h-screen flex flex-col p-2 md:p-4">
+      <header class="relative text-center py-2 mb-2">
+        <button id="refreshButton" class="absolute right-0 top-0 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md flex items-center transition-colors md:p-2 md:right-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span class="hidden md:inline ml-1">Refresh</span>
+        </button>
+        <h1 class="text-white text-2xl md:text-3xl font-bold flex items-center justify-center">
+          Home Office Metrics
+          <svg class="home-icon ml-2" fill="white" viewBox="0 0 576 512">
+            <path d="M575.8 255.5c0 18-15 32.1-32 32.1h-32l.7 160.2c0 2.7-.2 5.4-.5 8.1V472c0 22.1-17.9 40-40 40h-16c-1.1 0-2.2 0-3.3-.1c-1.4 .1-2.8 .1-4.2 .1H392c-22.1 0-40-17.9-40-40v-88c0-17.7-14.3-32-32-32h-64c-17.7 0-32 14.3-32 32v88c0 22.1-17.9 40-40 40h-55.9c-1.5 0-3-.1-4.5-.2c-1.2 .1-2.4 .2-3.6 .2h-16c-22.1 0-40-17.9-40-40V360c0-.9 0-1.9 .1-2.8v-69.6H32c-18 0-32-14-32-32.1c0-9 3-17 10-24L266.4 8c7-7 15-8 22-8s15 2 21 7l255.4 224.5c8 7 12 15 11 24z"/>
+          </svg>
+        </h1>
+      </header>
+      
+      <div class="chart-grid flex-1 grid gap-3 md:gap-4 overflow-auto">
+        <div class="chart-wrapper p-2 md:p-3">
           <canvas id="temperatureChart"></canvas>
         </div>
-        <div class="eight wide column">
+        <div class="chart-wrapper p-2 md:p-3">
           <canvas id="humidityChart"></canvas>
         </div>
-        <div class="eight wide column">
+        <div class="chart-wrapper p-2 md:p-3">
           <canvas id="co2Chart"></canvas>
         </div>
-        <div class="eight wide column">
+        <div class="chart-wrapper p-2 md:p-3">
           <canvas id="lightChart"></canvas>
         </div>
       </div>
@@ -59,10 +104,94 @@
     <!-- App logic -->
     <script src="app.js"></script>
     <script>
-      // Kick things off
-      loadData()
-        .then(data => renderCharts(data))
-        .catch(err => console.error('Error loading data:', err));
+      // Store chart instances globally for resize handling
+      let charts = [];
+      let isLoading = false;
+      
+      // Function to load and display fresh data
+      function refreshData() {
+        if (isLoading) return; // Prevent multiple simultaneous requests
+        
+        // Show loading state
+        isLoading = true;
+        const refreshButton = document.getElementById('refreshButton');
+        const originalHTML = refreshButton.innerHTML;
+        refreshButton.disabled = true;
+        refreshButton.innerHTML = `
+          <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span class="hidden md:inline ml-1">Loading...</span>
+        `;
+        
+        // Clear existing charts
+        charts.forEach(chart => {
+          if (chart) chart.destroy();
+        });
+        charts = [];
+        
+        // Load fresh data
+        loadData()
+          .then(data => renderCharts(data))
+          .catch(err => console.error('Error loading data:', err))
+          .finally(() => {
+            // Reset button state
+            isLoading = false;
+            refreshButton.disabled = false;
+            refreshButton.innerHTML = originalHTML;
+          });
+      }
+      
+      // Add click event to refresh button
+      document.getElementById('refreshButton').addEventListener('click', refreshData);
+      
+      // Resize handler for responsive charts
+      window.addEventListener('resize', function() {
+        if (charts.length > 0) {
+          charts.forEach(chart => {
+            if (chart) chart.resize();
+          });
+        }
+        adjustLayoutForScreenSize();
+      });
+      
+      // Function to set appropriate layout based on screen size
+      function adjustLayoutForScreenSize() {
+        const chartGrid = document.querySelector('.chart-grid');
+        const isDesktop = window.innerWidth >= 768;
+        
+        // For mobile: single column layout
+        if (!isDesktop) {
+          chartGrid.classList.add('grid-cols-1');
+          chartGrid.classList.remove('grid-cols-2');
+          
+          // Set fixed height for mobile chart containers
+          const chartWrappers = document.querySelectorAll('.chart-wrapper');
+          const heightValue = window.innerHeight * 0.6 + 'px';
+          
+          chartWrappers.forEach(wrapper => {
+            wrapper.style.height = heightValue;
+          });
+        } 
+        // For desktop: 2x2 grid layout
+        else {
+          chartGrid.classList.add('grid-cols-2');
+          chartGrid.classList.remove('grid-cols-1');
+          
+          // Let the CSS handle the height for desktop
+          const chartWrappers = document.querySelectorAll('.chart-wrapper');
+          chartWrappers.forEach(wrapper => {
+            wrapper.style.height = '';
+          });
+        }
+      }
+      
+      // Initialize layout
+      adjustLayoutForScreenSize();
+      
+      // Kick things off - show today's data only
+      refreshData();
     </script>
   </body>
 </html>

@@ -103,11 +103,25 @@ function prepareSeries(items) {
     return { temperature: [], humidity: [], co2: [], light: [] };
   }
 
-  cleanItems.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  // Always filter for today's data
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Start of today
+  
+  const todayItems = cleanItems.filter(item => {
+    const itemDate = new Date(item.timestamp);
+    return itemDate >= today;
+  });
+  
+  console.log(`Filtered to ${todayItems.length} items from today out of ${cleanItems.length} total items`);
+  
+  // Use today's items if available, otherwise fall back to all data
+  let itemsToProcess = todayItems.length > 0 ? todayItems : cleanItems;
+  
+  itemsToProcess.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
   // Helper to pluck and format data for Chart.js
   function pluck(field) {
-    const points = cleanItems
+    const points = itemsToProcess
       .map(d => {
         const t = new Date(d.timestamp);
         const v = parseFloat(d[field]);
@@ -162,6 +176,14 @@ function renderCharts(rawItems) {
   const commonOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: {
+        top: 10,
+        right: 10,
+        bottom: 5,
+        left: 5
+      }
+    },
     scales: {
       x: {
         type: 'time',
@@ -173,30 +195,76 @@ function renderCharts(rawItems) {
           }
         },
         title: {
-          display: true,
+          display: false, // Hide x-axis title on mobile
           text: 'Time',
           color: '#eee'
         },
         ticks: {
-          color: '#eee'
+          color: '#eee',
+          maxRotation: 45,
+          autoSkip: true,
+          maxTicksLimit: window.innerWidth < 768 ? 6 : 10,
+          autoSkipPadding: window.innerWidth < 768 ? 15 : 5,
+          font: {
+            size: window.innerWidth < 768 ? 10 : 12
+          }
+        },
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)'
         }
       },
       y: {
         ticks: {
-          color: '#eee'
+          color: '#eee',
+          font: {
+            size: window.innerWidth < 768 ? 10 : 12
+          }
+        },
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)'
         }
       }
     },
     plugins: {
       legend: {
         display: false
+      },
+      title: {
+        font: {
+          size: window.innerWidth < 768 ? 18 : 20,
+          weight: 'bold'
+        },
+        padding: {
+          top: 10,
+          bottom: 10
+        }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        titleFont: {
+          size: 14
+        },
+        bodyFont: {
+          size: 13
+        },
+        padding: 10
+      }
+    },
+    elements: {
+      point: {
+        radius: window.innerWidth < 768 ? 3 : 4,
+        hoverRadius: window.innerWidth < 768 ? 4 : 6
+      },
+      line: {
+        tension: 0.2,
+        borderWidth: window.innerWidth < 768 ? 2 : 3
       }
     }
   };
 
   // Temperature chart
   if (series.temperature.length > 0) {
-    new Chart(document.getElementById('temperatureChart').getContext('2d'), {
+    charts[0] = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
       type: 'line',
       data: {
         datasets: [{
@@ -212,7 +280,10 @@ function renderCharts(rawItems) {
           title: {
             display: true,
             text: `Temperature: ${latest.temp !== null ? latest.temp.toFixed(1) + '℃' : 'N/A'}`,
-            color: '#eee'
+            color: '#eee',
+            font: {
+              size: 20
+            }
           }
         },
         scales: {
@@ -236,7 +307,7 @@ function renderCharts(rawItems) {
 
   // Humidity chart
   if (series.humidity.length > 0) {
-    new Chart(document.getElementById('humidityChart').getContext('2d'), {
+    charts[1] = new Chart(document.getElementById('humidityChart').getContext('2d'), {
       type: 'line',
       data: {
         datasets: [{
@@ -252,7 +323,10 @@ function renderCharts(rawItems) {
           title: {
             display: true,
             text: `Humidity: ${latest.hum !== null ? latest.hum.toFixed(1) + ' %RH' : 'N/A'}`,
-            color: '#eee'
+            color: '#eee',
+            font: {
+              size: 20
+            }
           }
         },
         scales: {
@@ -276,7 +350,7 @@ function renderCharts(rawItems) {
 
   // CO2 chart
   if (series.co2.length > 0) {
-    new Chart(document.getElementById('co2Chart').getContext('2d'), {
+    charts[2] = new Chart(document.getElementById('co2Chart').getContext('2d'), {
       type: 'line',
       data: {
         datasets: [{
@@ -292,7 +366,10 @@ function renderCharts(rawItems) {
           title: {
             display: true,
             text: `CO2: ${latest.co2 !== null ? Math.round(latest.co2) + ' PPM' : 'N/A'}`,
-            color: '#eee'
+            color: '#eee',
+            font: {
+              size: 20
+            }
           }
         },
         scales: {
@@ -316,7 +393,7 @@ function renderCharts(rawItems) {
 
   // Light chart
   if (series.light.length > 0) {
-    new Chart(document.getElementById('lightChart').getContext('2d'), {
+    charts[3] = new Chart(document.getElementById('lightChart').getContext('2d'), {
       type: 'line',
       data: {
         datasets: [{
@@ -332,7 +409,10 @@ function renderCharts(rawItems) {
           title: {
             display: true,
             text: `Light: ${latest.light !== null ? Math.round(latest.light) + ' lux' : 'N/A'}`,
-            color: '#eee'
+            color: '#eee',
+            font: {
+              size: 20
+            }
           }
         },
         scales: {
