@@ -1,4 +1,5 @@
 # Home Office Pi IoT Project
+<img width="1450" alt="Screenshot 2025-05-03 at 18 16 38" src="https://github.com/user-attachments/assets/23eafa2c-5591-4d2b-8e32-1dc23e693966" />
 
 This project collects sensor data from a Raspberry Pi with Grove sensors and sends it to Azure IoT Hub.
 
