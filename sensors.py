@@ -54,3 +54,4 @@ class SensorManager:
         data["co2"] = co2
 
         logging.info(f"Collected sensor data: {data}")
+        return data
