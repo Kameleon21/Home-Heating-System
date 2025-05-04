@@ -56,38 +56,3 @@ class AzureIoTClient:
             logging.info(f"Sent telemetry: {telemetry}")
         except Exception as e:
             logging.error(f"Error sending telemetry: {e}")
-
-
-    # --- Placeholder for Command Handling (Needs registration) ---
-    # def handle_message(self, message):
-    #     logging.info("Message received:")
-    #     # ... process C2D message ...
-
-    # def handle_method_request(self, method_request):
-    #     logging.info(f"Direct method {method_request.name} received.")
-        # if method_request.name == "set_heating":
-        #     try:
-        #         payload = json.loads(method_request.payload)
-        #         logging.info(f"Payload: {payload}")
-        #         if payload.get("heating_on"):
-        #             self.button_led.write(1)
-        #             status = 200
-        #             response_payload = {"result": "Heating turned ON"}
-        #         else:
-        #             self.button_led.write(0)
-        #             status = 200
-        #             response_payload = {"result": "Heating turned OFF"}
-        #     except Exception as e:
-        #         logging.error(f"Error handling method {method_request.name}: {e}")
-        #         status = 500
-        #         response_payload = {"error": str(e)}
-        #
-        #     method_response = MethodResponse.create_from_method_request(
-        #         method_request, status, response_payload
-        #     )
-        #     self.client.send_method_response(method_response)
-        # else:
-        #     logging.warning(f"Unknown method received: {method_request.name}")
-        #     # Send 404
-        #     method_response = MethodResponse.create_from_method_request(method_request, 404, {"error": "Method not found"})
-        #     self.client.send_method_response(method_response) 
