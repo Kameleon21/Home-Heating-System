@@ -23,7 +23,7 @@ A smart Home Office IoT monitoring system that collects, processes, and visualiz
 
 This project implements an IoT-based environmental monitoring system for a home office environment. It collects data from multiple sensors connected to a Raspberry Pi, transmits the data to Azure IoT Hub, processes it in the cloud, and visualizes it through a responsive web dashboard.
 
-![Dashboard Preview](https://github.com/user-attachments/assets/23eafa2c-5591-4d2b-8e32-1dc23e693966)
+<img width="1368" alt="Screenshot 2025-05-04 at 15 54 48" src="https://github.com/user-attachments/assets/9a63d566-608d-49a7-bc8c-b51b48fb0dfe" />
 
 The system consists of the following components:
 
