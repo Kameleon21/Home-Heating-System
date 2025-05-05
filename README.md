@@ -127,6 +127,8 @@ The system consists of the following components:
    ```
 5. Access the dashboard by opening `docs/index.html` in a web browser
 
+Note: The system uses a cron job configured on the Raspberry Pi to run `main.py` every 3 minutes, automatically collecting sensor data and sending it to Azure IoT Hub. This ensures continuous data collection without manual intervention.
+
 ## 6. IoT Device Connection
 
 The system uses a Raspberry Pi 4 with Grove sensors to collect environmental data. The Raspberry Pi connects to Azure IoT Hub using MQTT protocol for secure communication.
@@ -219,8 +221,14 @@ The dashboard visualization is built using:
 The dashboard:
 1. Fetches aggregated sensor data from Azure Blob Storage
 2. Displays data in responsive charts that work on both desktop and mobile
-3. Provides time filtering options to view data at different time scales (3m, 5m, 10m, 20m)
-4. Updates in real-time with a refresh button
+3. Provides enhanced time filtering options that clearly indicate both the data aggregation interval and the time span:
+   - **3min/Last 1h**: 3-minute intervals for the last hour of data
+   - **5min/Last 6h**: 5-minute intervals for the last 6 hours of data
+   - **10min/Last 24h**: 10-minute intervals for the last 24 hours of data
+   - **20min/Last 7d**: 20-minute intervals for the last 7 days of data
+4. Features visual time range indicators that show the relative time spans at a glance
+5. Displays time range information in chart titles for better context
+6. Updates in real-time with a refresh button
 
 ### Key Code Snippet
 

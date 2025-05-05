@@ -61,6 +61,14 @@ const INTERVAL_FILE = {
   20: '20min/last7d.json'
 };
 
+// Map minutes to human-readable time spans
+const TIME_SPANS = {
+  3: 'Last 1 hour',
+  5: 'Last 6 hours',
+  10: 'Last 24 hours',
+  20: 'Last 7 days'
+};
+
 // =============================================
 // Fetch one aggregated file
 // =============================================
@@ -142,14 +150,17 @@ async function refreshData() {
       series[key] = arr.map(pt => ({ x:new Date(pt.t), y:pt.y }));
     });
 
+    // Get time span text for the chart title
+    const timeSpanText = activeTimeFilter === 0 ? '' : ` - ${TIME_SPANS[activeTimeFilter]}`;
+
     // clear & draw
     destroyExistingCharts();
     const opts = getChartOptions();
     charts.push(
-      createLineChart(getCanvasContext('temperatureChart'), series.temperature, CONFIG.charts.colors.temperature, `Temperature (${CONFIG.charts.units.temperature})`),
-      createLineChart(getCanvasContext('humidityChart'),    series.humidity,    CONFIG.charts.colors.humidity,    `Humidity (${CONFIG.charts.units.humidity})`),
-      createLineChart(getCanvasContext('co2Chart'),         series.co2,         CONFIG.charts.colors.co2,         `CO₂ (${CONFIG.charts.units.co2})`),
-      createLineChart(getCanvasContext('lightChart'),       series.light,       CONFIG.charts.colors.light,       `Light (${CONFIG.charts.units.light})`)
+      createLineChart(getCanvasContext('temperatureChart'), series.temperature, CONFIG.charts.colors.temperature, `Temperature (${CONFIG.charts.units.temperature})${timeSpanText}`),
+      createLineChart(getCanvasContext('humidityChart'),    series.humidity,    CONFIG.charts.colors.humidity,    `Humidity (${CONFIG.charts.units.humidity})${timeSpanText}`),
+      createLineChart(getCanvasContext('co2Chart'),         series.co2,         CONFIG.charts.colors.co2,         `CO₂ (${CONFIG.charts.units.co2})${timeSpanText}`),
+      createLineChart(getCanvasContext('lightChart'),       series.light,       CONFIG.charts.colors.light,       `Light (${CONFIG.charts.units.light})${timeSpanText}`)
     );
   } catch (e) {
     console.error('Error loading data:', e);

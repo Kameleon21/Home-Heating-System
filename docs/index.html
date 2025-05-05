@@ -90,6 +90,11 @@
         font-size: 0.875rem;
         transition: all 0.2s;
         border: 1px solid #555;
+        min-width: 60px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
       }
       
       .time-filter-btn:hover:not(:disabled) {
@@ -105,11 +110,28 @@
         cursor: not-allowed;
       }
       
+      .time-range-indicator {
+        height: 3px;
+        margin-top: 3px;
+        background-color: rgba(255, 255, 255, 0.5);
+        border-radius: 2px;
+      }
+      
+      .time-range-indicator-1h { width: 20px; }
+      .time-range-indicator-6h { width: 40px; }
+      .time-range-indicator-24h { width: 60px; }
+      .time-range-indicator-7d { width: 80px; }
+      
       @media (max-width: 640px) {
         .time-filter-btn {
           padding: 0.2rem 0.5rem;
           font-size: 0.75rem;
+          min-width: 50px;
         }
+        .time-range-indicator-1h { width: 15px; }
+        .time-range-indicator-6h { width: 30px; }
+        .time-range-indicator-24h { width: 45px; }
+        .time-range-indicator-7d { width: 60px; }
       }
     </style>
   </head>
@@ -133,11 +155,31 @@
         
         <!-- Time Range Filters -->
         <div class="time-filters flex justify-center mt-2 space-x-2 md:space-x-4">
-          <button class="time-filter-btn active" data-minutes="0">All</button>
-          <button class="time-filter-btn" data-minutes="3">3m</button>
-          <button class="time-filter-btn" data-minutes="5">5m</button>
-          <button class="time-filter-btn" data-minutes="10">10m</button>
-          <button class="time-filter-btn" data-minutes="20">20m</button>
+          <button class="time-filter-btn active" data-minutes="0" title="Shows the most recent hour with 3-minute intervals">
+            <span class="block text-xs md:text-sm">All</span>
+            <span class="text-xs text-gray-300">3min default</span>
+            <div class="time-range-indicator time-range-indicator-1h"></div>
+          </button>
+          <button class="time-filter-btn" data-minutes="3">
+            <span class="block text-xs md:text-sm">3min</span>
+            <span class="text-xs text-gray-300">Last 1h</span>
+            <div class="time-range-indicator time-range-indicator-1h"></div>
+          </button>
+          <button class="time-filter-btn" data-minutes="5">
+            <span class="block text-xs md:text-sm">5min</span>
+            <span class="text-xs text-gray-300">Last 6h</span>
+            <div class="time-range-indicator time-range-indicator-6h"></div>
+          </button>
+          <button class="time-filter-btn" data-minutes="10">
+            <span class="block text-xs md:text-sm">10min</span>
+            <span class="text-xs text-gray-300">Last 24h</span>
+            <div class="time-range-indicator time-range-indicator-24h"></div>
+          </button>
+          <button class="time-filter-btn" data-minutes="20">
+            <span class="block text-xs md:text-sm">20min</span>
+            <span class="text-xs text-gray-300">Last 7d</span>
+            <div class="time-range-indicator time-range-indicator-7d"></div>
+          </button>
         </div>
       </header>
       
