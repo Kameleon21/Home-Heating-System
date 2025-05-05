@@ -1,3 +1,9 @@
+# Home Office IoT Monitoring System
+
+**Student Name:** Kamil Rogozinski  
+**Student Number:** 20089737
+
+
 # Project Title
 
 A smart Home Office IoT monitoring system that collects, processes, and visualizes environmental data for optimal workspace conditions.
@@ -23,6 +29,21 @@ A smart Home Office IoT monitoring system that collects, processes, and visualiz
 ## 1. Overview
 
 This project implements an IoT-based environmental monitoring system for a home office environment. It collects data from multiple sensors connected to a Raspberry Pi, transmits the data to Azure IoT Hub, processes it in the cloud, and visualizes it through a responsive web dashboard.
+
+### Personal Motivation
+
+As someone who spends significant time working from my home office, I wanted to create a system that helps me maintain an optimal working environment. I've noticed that factors like temperature, humidity, light levels, and air quality significantly impact my productivity and well-being. 
+
+Too often, I would find myself feeling tired or unfocused without understanding why, only to later realize the room had become too warm, too dark, or poorly ventilated. By creating this IoT monitoring system, I can now:
+
+- Track environmental conditions throughout my workday
+- Identify patterns that affect my comfort and productivity
+- Make data-driven decisions about when to adjust heating, lighting, or ventilation
+- Create a healthier, more comfortable workspace based on actual measurements rather than subjective feelings
+
+Beyond solving my immediate needs, this project allowed me to explore how IoT technologies can create meaningful improvements in everyday life through continuous monitoring, cloud-based processing, and accessible visualization of environmental data.
+
+The dashboard for this project is publicly accessible through GitHub Pages, allowing me to monitor my home office environment from anywhere with internet access.
 
 <img width="1368" alt="Dashboard Preview" src="https://github.com/user-attachments/assets/9a63d566-608d-49a7-bc8c-b51b48fb0dfe" />
 *Home Office IoT Dashboard displaying sensor data*
@@ -128,6 +149,13 @@ The system consists of the following components:
 5. Access the dashboard by opening `docs/index.html` in a web browser
 
 Note: The system uses a cron job configured on the Raspberry Pi to run `main.py` every 3 minutes, automatically collecting sensor data and sending it to Azure IoT Hub. This ensures continuous data collection without manual intervention.
+
+### Live Dashboard
+
+The dashboard is deployed on GitHub Pages and can be accessed at:
+[https://kameleon21.github.io/Home-Office-Pi/](https://kameleon21.github.io/Home-Office-Pi/)
+
+This provides a convenient way to monitor the home office environment from any device with a web browser.
 
 ## 6. IoT Device Connection
 
