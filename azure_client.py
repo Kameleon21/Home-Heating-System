@@ -1,13 +1,41 @@
+"""Azure IoT Hub client for sending sensor telemetry data.
+
+This module provides a client for connecting to Azure IoT Hub and sending
+telemetry data. It handles connection management, message formatting,
+and proper cleanup of resources.
+"""
+
 import logging
 import json
 import os
+from typing import Dict, Union, Optional
 from dotenv import load_dotenv
 from azure.iot.device import IoTHubDeviceClient, Message, MethodResponse
 from grove.gpio import GPIO
 
 
 class AzureIoTClient:
-    def __init__(self):
+    """Client for connecting to Azure IoT Hub and sending telemetry data.
+    
+    This class manages the connection to Azure IoT Hub, handles message
+    formatting, and provides methods for sending telemetry data securely.
+    
+    Attributes:
+        device_id (str): Unique identifier for this device
+        connection_string (str): Azure IoT Hub connection string
+        client (IoTHubDeviceClient): Azure IoT Hub device client instance
+        button_led (GPIO): GPIO pin for LED indicator
+    """
+
+    def __init__(self) -> None:
+        """Initialize the Azure IoT Hub client.
+        
+        Loads environment variables and establishes initial configuration.
+        The actual connection to IoT Hub is established in the connect() method.
+        
+        Raises:
+            ValueError: If the IoT Hub connection string is not set in environment
+        """
         load_dotenv()
         self.device_id = os.getenv("UUID")
         self.connection_string = os.getenv("IOT_CONNECTION_STRING")
@@ -24,8 +52,12 @@ class AzureIoTClient:
         # self.client.on_method_request_received = self.handle_method_request # For Direct Methods
         logging.info("Azure IoT Client initialized.")
 
-
-    def connect(self):
+    def connect(self) -> None:
+        """Establish connection to Azure IoT Hub.
+        
+        Raises:
+            Exception: If connection fails, the exception is logged and re-raised
+        """
         logging.info("Connecting to Azure IoT Hub...")
         try:
             self.client.connect()
@@ -34,15 +66,20 @@ class AzureIoTClient:
             logging.error(f"Failed to connect to Azure IoT Hub: {e}")
             raise # Re-raise exception to handle it in main or exit
 
-
-    def shutdown(self):
+    def shutdown(self) -> None:
+        """Safely disconnect from Azure IoT Hub and clean up resources."""
         logging.info("Shutting down Azure IoT Hub client...")
         if self.client and self.client.connected:
             self.client.shutdown()
             logging.info("Azure IoT Hub client shut down.")
 
-
-    def send_telemetry(self, data):
+    def send_telemetry(self, data: Dict[str, Union[float, int]]) -> None:
+        """Send sensor telemetry data to Azure IoT Hub.
+        
+        Args:
+            data: Dictionary containing sensor readings to send as telemetry.
+                 Expected to contain keys like 'temperature', 'humidity', etc.
+        """
         if not data:
             logging.warning("No sensor data to send.")
             return

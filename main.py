@@ -1,3 +1,9 @@
+"""Main entry point for the IoT sensor data collection and transmission application.
+
+This module initializes the sensor manager and Azure IoT client, collects sensor data,
+and sends it to Azure IoT Hub. It handles proper logging and error management.
+"""
+
 import logging
 import time
 import os
@@ -6,6 +12,19 @@ from azure_client import AzureIoTClient
 
 
 def main():
+    """Initialize components, collect sensor data, and send to Azure IoT Hub.
+    
+    This function:
+    1. Configures logging to write to user's home directory
+    2. Initializes sensor manager and Azure IoT client
+    3. Collects sensor data
+    4. Sends data to Azure IoT Hub
+    5. Handles cleanup on exit
+    
+    Raises:
+        Exception: Any unexpected errors during execution are logged
+            and the Azure client is properly shut down.
+    """
     # Configure logging with user's home directory
     home_dir = os.path.expanduser('~')  # Get current user's home directory
     log_file = os.path.join(home_dir, 'iot_sensor.log')
