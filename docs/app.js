@@ -21,7 +21,7 @@ const CONFIG = {
       light:       'lux'
     }
   },
-  timeRanges: [0, 3, 5, 10, 20]  // 0=All, else minutes
+  timeRanges: [0, 3, 5, 10, 20]
 };
 
 // build base URL
@@ -79,12 +79,11 @@ async function fetchAggregated(minutes) {
 
   const res = await fetch(url, { mode: 'cors' });
   if (!res.ok) throw new Error(`Fetch ${filename} failed: ${res.status}`);
-  return await res.json();  // should be { temperature: [...], humidity: [...], co2: [...], light: [...] }
+  return await res.json();  
 }
 
 // =============================================
 // Chart plumbing (context, create, destroy, etc.)
-// (You can lift these from your existing code verbatim.)
 // =============================================
 function getCanvasContext(id) {
   const c = document.getElementById(id);
